@@ -6,9 +6,9 @@
 "t": "Pods & Container Lifecycle",
 "s": "The atomic unit: shared namespaces, init/sidecar ordering, probes, restarts, QoS",
 "quick": [
-"Smallest deployable unit \u2014 containers share one network namespace and IP",
-"Init containers run to completion first; sidecars are init containers with restartPolicy: Always",
-"Liveness restarts a container, readiness only pulls it out of Service endpoints"
+"One or more containers sharing one IP",
+"Init containers first; sidecars run alongside",
+"Liveness restarts; readiness gates traffic"
 ],
 "methods": [
 "kubectl describe pod <name>",
@@ -49,9 +49,9 @@
 "t": "Deployments, StatefulSets & Friends",
 "s": "Rollout mechanics, rollback, stable identity, node daemons, and batch work",
 "quick": [
-"Deployment drives ReplicaSets; maxSurge/maxUnavailable pace the swap",
-"Rollback = re-scaling an old ReplicaSet kept by revisionHistoryLimit",
-"StatefulSet gives ordinal names, stable DNS, and one PVC per replica"
+"Deployment rolls pods via ReplicaSets",
+"Rollback = re-scale the previous ReplicaSet",
+"StatefulSet: stable names, DNS, per-pod PVC"
 ],
 "methods": [
 "kubectl rollout status deployment/<name>",
@@ -92,9 +92,9 @@
 "t": "Scheduling, Resources & Placement",
 "s": "Requests vs limits, affinity, taints/tolerations, spread, and preemption",
 "quick": [
-"Scheduler places by requests only; limits are enforced later by the kernel",
-"CPU over limit = throttled; memory over limit = OOMKilled (exit 137)",
-"Taints repel at the node; affinity attracts from the pod"
+"Scheduler places by requests, not limits",
+"Over CPU = throttled; over memory = OOMKill",
+"Taints repel nodes; affinity attracts pods"
 ],
 "methods": [
 "resources.requests / resources.limits",
@@ -135,9 +135,9 @@
 "t": "ConfigMaps & Secrets",
 "s": "Env vs volume consumption, update propagation, immutability, and real secrecy",
 "quick": [
-"Env vars freeze at container start; mounted volumes refresh in place",
-"base64 in a Secret is encoding, not encryption \u2014 etcd needs encryption at rest",
-"subPath mounts and immutable objects never get live updates"
+"Env vars freeze at start; volumes refresh",
+"Secret base64 is encoding, not encryption",
+"subPath and immutable never live-update"
 ],
 "methods": [
 "kubectl create configmap app-cfg --from-file=config.yaml",
@@ -178,9 +178,9 @@
 "t": "Control Plane & Node Components",
 "s": "api-server, etcd quorum, scheduler, controllers, kubelet \u2014 and what breaks when each dies",
 "quick": [
-"Everything reads/writes state through the api-server; only it talks to etcd",
-"etcd needs majority quorum \u2014 3 nodes tolerate 1 loss, 5 tolerate 2",
-"Control plane down \u2260 workloads down: running pods keep serving"
+"All state flows through the api-server",
+"etcd quorum: 3 nodes tolerate losing 1",
+"Control plane down \u2260 workloads down"
 ],
 "methods": [
 "kubectl get componentstatuses  (deprecated but asked)",
@@ -221,9 +221,9 @@
 "t": "RBAC & ServiceAccounts",
 "s": "Roles, bindings, projected tokens, auth can-i, and decoding 403s",
 "quick": [
-"RBAC is allow-only and additive \u2014 there is no deny rule",
-"RoleBinding + ClusterRole = that ClusterRole's powers in ONE namespace",
-"Pods authenticate as system:serviceaccount:<ns>:<name> via projected tokens"
+"Allow-only and additive \u2014 no deny rules",
+"RoleBinding + ClusterRole = one namespace",
+"Pods authenticate as ServiceAccounts"
 ],
 "methods": [
 "kubectl auth can-i create deployments --as=jane -n dev",
@@ -264,9 +264,9 @@
 "t": "CRDs, Controllers & Operators",
 "s": "Extending the API, the reconcile loop, status vs spec, finalizers",
 "quick": [
-"A CRD teaches the api-server a new resource type \u2014 no new server needed",
-"Controllers reconcile: observe actual state, drive it toward spec",
-"Operator = CRD(s) + controller encoding a human operator's runbook"
+"A CRD teaches the API a new resource type",
+"Controllers reconcile actual toward spec",
+"Operator = CRDs + a codified runbook"
 ],
 "methods": [
 "kubectl get crds",
@@ -307,9 +307,9 @@
 "t": "Services & kube-proxy",
 "s": "ClusterIP, NodePort, LoadBalancer \u2014 and the DNAT machinery underneath",
 "quick": [
-"A Service is a stable virtual IP + DNS name in front of an ever-changing set of pod IPs, selected by labels.",
-"The ClusterIP is not a real interface anywhere \u2014 kube-proxy programs iptables/IPVS rules on every node that DNAT traffic to a ready pod IP.",
-"NodePort (30000-32767 on every node) builds on ClusterIP; LoadBalancer builds on NodePort by asking the cloud for an external LB."
+"Stable virtual IP + DNS over pod churn",
+"ClusterIP is kube-proxy rules, not a NIC",
+"ClusterIP \u2192 NodePort \u2192 LoadBalancer stack"
 ],
 "methods": [
 "kubectl get svc -o wide",
@@ -350,9 +350,9 @@
 "t": "Cluster DNS (CoreDNS)",
 "s": "Name forms, resolv.conf search magic, ndots:5, and debugging lookups",
 "quick": [
-"Every Service gets a DNS name: <svc>.<namespace>.svc.cluster.local, resolved by CoreDNS pods behind the kube-dns Service.",
-"kubelet writes each pod's /etc/resolv.conf with the cluster nameserver, a 3-entry search list, and options ndots:5.",
-"Headless Services resolve to the set of pod IPs; regular Services resolve to the single ClusterIP."
+"Names: svc.namespace.svc.cluster.local",
+"kubelet writes resolv.conf with ndots:5",
+"Headless resolves to pod IPs directly"
 ],
 "methods": [
 "kubectl run dbg --rm -it --image=busybox:1.28 -- nslookup web.prod",
@@ -393,9 +393,9 @@
 "t": "Ingress & L7 Routing",
 "s": "Host/path rules, TLS termination, controllers, and 404/502 forensics",
 "quick": [
-"Ingress is an L7 (HTTP/HTTPS) routing rulebook \u2014 host and path matches mapped to backend Services.",
-"The Ingress object does NOTHING by itself; an ingress controller (nginx, traefik, cloud) must watch it and program a real proxy.",
-"One LoadBalancer + one controller can front dozens of Services \u2014 versus paying for one cloud LB per Service."
+"L7 rulebook: host/path \u2192 backend Service",
+"Does nothing without an ingress controller",
+"One LB fronts many Services cheaply"
 ],
 "methods": [
 "kubectl get ingress -A",
@@ -436,9 +436,9 @@
 "t": "NetworkPolicies",
 "s": "From default-allow to zero-trust: selectors, additive rules, DNS gotcha",
 "quick": [
-"Kubernetes pods default to allow-all in both directions; a NetworkPolicy that SELECTS a pod flips it to deny-by-default for the listed policyTypes.",
-"Policies are additive allow-lists \u2014 there is no deny rule and no ordering; the union of everything that selects a pod is what's allowed.",
-"Enforcement is the CNI's job: with a plugin that doesn't implement policy (classic Flannel), NetworkPolicies are silently ignored."
+"Selecting a pod flips it to default-deny",
+"Additive allow-lists \u2014 no deny, no order",
+"Enforcement depends on the CNI plugin"
 ],
 "methods": [
 "kubectl get netpol -A",
@@ -479,9 +479,9 @@
 "t": "CNI & the Pod Network",
 "s": "The IP-per-pod contract, what plugins actually do, and how it breaks",
 "quick": [
-"The Kubernetes network model is a contract: every pod gets its own IP, all pods reach all pods WITHOUT NAT, and a pod sees the same IP others see.",
-"Kubernetes doesn't implement this itself \u2014 a CNI plugin (Calico, Cilium, Flannel...) wires each pod's network namespace and routes cross-node traffic.",
-"CNI failures have signatures: pods stuck ContainerCreating with 'failed to set up sandbox', or nodes NotReady with 'CNI plugin not initialized'."
+"Contract: pod IPs route with no NAT",
+"A CNI plugin wires pods and routes nodes",
+"Broken CNI = stuck ContainerCreating"
 ],
 "methods": [
 "kubectl describe pod <stuck-pod>   # sandbox / CNI errors in Events",
@@ -522,9 +522,9 @@
 "t": "PVs, PVCs & StorageClasses",
 "s": "The full storage lifecycle: provisioning, binding, reclaim, expansion",
 "quick": [
-"PVC = a namespaced request for storage ('give me 10Gi RWO'); PV = the actual cluster-scoped volume; StorageClass = the recipe for creating PVs on demand.",
-"Binding is exclusive 1:1 \u2014 a PVC binds a PV via claimRef, matching on size (PV >= request), access modes, and storageClassName.",
-"When the PVC is deleted, reclaimPolicy decides: Delete destroys the PV and the real disk; Retain parks the PV as 'Released' with data intact."
+"PVC requests \u00b7 PV supplies \u00b7 SC provisions",
+"Binding is exclusive 1:1 via claimRef",
+"Delete kills the disk; Retain parks it"
 ],
 "methods": [
 "kubectl get pv,pvc -A",
@@ -566,9 +566,9 @@
 "t": "The Triage Method",
 "s": "Observe, hypothesize, test \u2014 the loop interviewers actually grade",
 "quick": [
-"Every Kubernetes debug answer follows one loop: observe (describe/logs/events), hypothesize one cause, run one command to test it, and repeat \u2014 never jump straight to a fix.",
-"The trio is kubectl describe pod (states + events), kubectl logs --previous (why the LAST container died), and kubectl get events --sort-by=.metadata.creationTimestamp for the cluster-wide timeline.",
-"In an incident, mitigation beats root cause: rollout undo, scale, or shift traffic first, then debug the broken thing offline \u2014 say this out loud and you sound senior."
+"Observe \u2192 hypothesize \u2192 test \u2192 repeat",
+"describe + logs --previous + events",
+"Mitigate first, root-cause offline"
 ],
 "methods": [
 "kubectl describe pod <pod> \u2014 one command, three answers: container State/Last State with exit code and reason, restart count, and the Events section at the bottom",
@@ -611,9 +611,9 @@
 "t": "Pod Failure States",
 "s": "Pending, CrashLoopBackOff, ImagePullBackOff and friends \u2014 decoded",
 "quick": [
-"Pending means the scheduler can't place the pod (resources, taints, PVC, affinity) \u2014 the FailedScheduling event in describe literally lists why every node was rejected.",
-"CrashLoopBackOff means the container starts and dies repeatedly; kubelet backs off 10s, 20s, 40s up to a 5-minute cap, and the exit code (1 app error, 137 OOM/SIGKILL, 143 SIGTERM) tells you why.",
-"ImagePullBackOff is always one of three things: wrong image name/tag, registry unreachable, or missing/wrong imagePullSecrets \u2014 the Failed pull event spells out which."
+"Pending = unschedulable; events say why",
+"CrashLoop: read the exit code (1/137/143)",
+"ImagePull: tag, registry, or pull secret"
 ],
 "methods": [
 "kubectl describe pod <pod> \u2014 the state, Last State, exit code, and the Events section that names the exact failure",
@@ -656,9 +656,9 @@
 "t": "Node Troubleshooting",
 "s": "NotReady, pressure evictions, cordon/drain, and what happens to orphaned pods",
 "quick": [
-"NotReady means the kubelet stopped posting healthy status \u2014 diagnose bottom-up on the node: kubelet service (journalctl -u kubelet), container runtime, CNI, certificates, disk.",
-"cordon marks a node unschedulable (existing pods stay); drain cordons AND evicts pods gracefully, honoring PodDisruptionBudgets \u2014 which is why a drain can legitimately hang.",
-"When a node dies, its pods are marked via the unreachable NoExecute taint and evicted after ~5 minutes by default \u2014 Deployments replace them elsewhere, StatefulSets wait for confirmation."
+"NotReady = kubelet stopped reporting",
+"drain = cordon + evict, honors PDBs",
+"Dead node pods evicted after ~5 minutes"
 ],
 "methods": [
 "kubectl get nodes \u2014 the fleet overview; any STATUS other than Ready is your starting point",
@@ -702,9 +702,9 @@
 "t": "Service & App Debugging",
 "s": "No traffic, 502s, DNS failures, and stuck rollouts \u2014 the app-layer playbook",
 "quick": [
-"'Service gets no traffic' is answered by one command: kubectl get endpointslices \u2014 empty endpoints mean either the selector matches no pod labels or no matching pod is Ready (readiness probe failing).",
-"A failing readiness probe silently removes the pod from Service endpoints without restarting anything \u2014 the pod shows Running 0/1, and that 0/1 is the entire diagnosis.",
-"For a bad deploy, kubectl rollout undo deployment/<name> is the instant mitigation; rollout status tells you it's stuck, and progressDeadlineSeconds (default 600s) is when Kubernetes formally declares the rollout failed."
+"No traffic? Check endpoints first",
+"Running 0/1 = readiness probe failing",
+"rollout undo is the instant mitigation"
 ],
 "methods": [
 "kubectl get endpointslices -l kubernetes.io/service-name=<svc> \u2014 THE service-debug command: are there ready backend IPs at all?",
@@ -749,9 +749,9 @@
 "t": "OpenShift Platform Delta",
 "s": "What changes when your Kubernetes becomes OpenShift \u2014 projects, oc, cluster operators, machine configs",
 "quick": [
-"OpenShift = Kubernetes + opinionated batteries: OAuth login, built-in registry, Routes, SCCs, builds \u2014 all managed by cluster operators.",
-"A Project is a namespace plus annotations (UID range, node selector) created through a template you can't bypass with plain 'kubectl create ns' as a normal user.",
-"'oc get co' is the single fastest cluster health check \u2014 every platform component reports Available/Progressing/Degraded through its cluster operator."
+"K8s + OAuth, registry, Routes, SCCs",
+"Projects are namespaces with guardrails",
+"oc get co = fastest cluster health check"
 ],
 "methods": [
 "oc login --token=<token> --server=https://api.cluster.example.com:6443",
@@ -793,9 +793,9 @@
 "t": "Security Context Constraints (SCC)",
 "s": "Why root-assuming images die on OpenShift \u2014 restricted-v2, arbitrary UIDs, and fixing images the right way",
 "quick": [
-"restricted-v2 is the default SCC: no root, no privilege escalation, ALL capabilities dropped, seccomp enforced, and the pod runs as a random UID from the project's range.",
-"Fix images, not policy: don't hardcode a UID, chown/chmod app dirs to group 0 (root group), and your image runs under any assigned UID.",
-"SCC admission matches by users/groups (usually via the pod's service account), then picks by priority, then most-restrictive, then name \u2014 grant extra SCCs to service accounts, never to all users."
+"restricted-v2: no root, random UID",
+"Fix the image (group 0), not the policy",
+"Grant SCCs to service accounts only"
 ],
 "methods": [
 "oc get scc && oc describe scc restricted-v2",
@@ -837,9 +837,9 @@
 "t": "Routes & TLS Termination",
 "s": "OpenShift's HAProxy-backed ingress \u2014 edge vs passthrough vs re-encrypt, sharding, and cert pitfalls",
 "quick": [
-"A Route maps a hostname to a Service; the IngressController's HAProxy router pods watch Routes and reload their config \u2014 no cloud LB controller or Ingress class wrangling needed.",
-"Three TLS modes: edge (router terminates, plain HTTP to pod), passthrough (TLS flows through via SNI, pod terminates), re-encrypt (router terminates, then re-TLS to the pod).",
-"Default hostname is <route>-<namespace>.apps.<cluster-domain>; custom hosts need DNS pointing at the router AND a cert the router can serve."
+"Route maps hostname \u2192 Service via HAProxy",
+"TLS: edge, passthrough, or re-encrypt",
+"Default host: name-ns.apps.cluster"
 ],
 "methods": [
 "oc expose service web  (plain HTTP route)",
@@ -881,9 +881,9 @@
 "t": "ImageStreams, Builds & Deploy Flow",
 "s": "OpenShift's image supply chain \u2014 ImageStream tag tracking, S2I builds, triggers, and the DC-to-Deployment shift",
 "quick": [
-"An ImageStream is a named pointer table: tags map to immutable image SHAs, can track external registries on a schedule, and fire triggers into builds and deployments when they move.",
-"S2I (source-to-image) builds an image from source with NO Dockerfile: a builder image's assemble script injects your code \u2014 'oc new-app <git-url>' wires the whole chain in one command.",
-"DeploymentConfigs are the deprecated OpenShift-native predecessor of Deployments; new work uses Deployments, with image trigger annotations replacing DC ImageChange triggers."
+"ImageStream tags point at image SHAs",
+"S2I builds from source, no Dockerfile",
+"DeploymentConfigs are deprecated"
 ],
 "methods": [
 "oc new-app https://github.com/org/app --name=web  (detects language, creates BC+IS+Deployment+Svc)",
@@ -926,9 +926,9 @@
 "t": "SLIs, SLOs & Error Budgets",
 "s": "Measuring reliability as good/total events and spending the gap deliberately",
 "quick": [
-"SLI = good events / total events; SLO = target for that ratio over a window; error budget = 100% minus the SLO, a spendable allowance for failure.",
-"Monthly budget shrinks 10x per nine: 99.9% allows ~43.2 minutes of full downtime in 30 days, 99.95% allows 21.6, and 99.99% only 4.32.",
-"The error budget policy is a pre-agreed contract: when the budget is spent, feature releases pause and engineering shifts to reliability work."
+"SLI measures \u00b7 SLO targets \u00b7 budget = rest",
+"99.9% monthly \u2248 43 minutes of downtime",
+"Budget spent \u2192 release freeze kicks in"
 ],
 "methods": [],
 "intro": [
@@ -962,9 +962,9 @@
 "t": "SLO Alerting & Burn Rates",
 "s": "Multi-window multi-burn-rate paging instead of noisy raw thresholds",
 "quick": [
-"Burn rate = how many times faster than 'exactly exhaust the budget at window end' you are burning; burn rate 1 on a 30-day SLO exhausts the budget in exactly 30 days.",
-"SRE Workbook starting point for a 99.9% SLO: page at 14.4x over 1h (2% of budget) and 6x over 6h (5%); ticket at 1x over 3 days (10%) \u2014 each paired with a short window (5m/30m/6h) to confirm the burn is still active.",
-"Page on symptoms (users hurting), ticket on causes; every page must be urgent, actionable, and require human intelligence \u2014 otherwise it is training your on-call to ignore pages."
+"Burn rate 1 = budget gone at window end",
+"Page at 14.4x/1h and 6x/6h burn",
+"Page symptoms; ticket causes"
 ],
 "methods": [],
 "intro": [
@@ -998,9 +998,9 @@
 "t": "Incident Management",
 "s": "Incident command roles, mitigate-first doctrine, and clean handoffs",
 "quick": [
-"Roles from Google's ICS-derived model: Incident Commander coordinates and delegates, Ops Lead's team is the ONLY group changing the system, Communications Lead updates stakeholders, Planning handles logistics and the long tail.",
-"Mitigate first, understand later: stop the bleeding with a generic action \u2014 roll back, flip the feature flag off, shed load, fail over \u2014 root cause analysis belongs to the postmortem, not the outage.",
-"Declare an incident early using preset criteria (second team needed, customer-visible outage, or unsolved after ~1 hour), and hand off explicitly: 'You're now the incident commander' plus acknowledged confirmation."
+"IC coordinates; only Ops changes things",
+"Mitigate first \u2014 rollback, flag, shed",
+"Declare early, hand off explicitly"
 ],
 "methods": [],
 "intro": [
@@ -1034,9 +1034,9 @@
 "t": "Blameless Postmortems",
 "s": "Turning incidents into system fixes without destroying the information supply",
 "quick": [
-"Blameless = assume everyone acted with good intent on the information they had; investigate the system that made the mistake easy, not the person who made it.",
-"A postmortem is a written record: impact, timeline, root cause(s) and contributing factors, what mitigated/resolved it, and action items with named owners and priorities.",
-"Standard triggers: user-visible downtime beyond a threshold, any data loss, on-call manual intervention, resolution time over a bound, or a monitoring failure (incident found by a human, not an alert)."
+"Blame the system, not the person",
+"Timeline, causes, owned action items",
+"Triggered by downtime, data loss, pages"
 ],
 "methods": [],
 "intro": [
@@ -1070,9 +1070,9 @@
 "t": "Kubernetes Autoscaling",
 "s": "HPA math on requests, VPA, node autoscaling, and why they fight",
 "quick": [
-"HPA formula: desiredReplicas = ceil(currentReplicas x currentMetric / targetMetric), evaluated ~every 15s with a 10% tolerance band \u2014 and CPU utilization is a percentage of the pod's resource REQUESTS, not limits.",
-"Scale-down has a 300s default stabilization window (uses the highest recommendation from the last 5 min) to prevent flapping; scale-up is immediate by default and both are tunable via the v2 'behavior' field.",
-"HPA scales pod count, VPA scales pod size, Cluster Autoscaler/Karpenter scale nodes, KEDA scales on event-source metrics (queue depth, Kafka lag) including to zero \u2014 never run HPA and VPA on the same metric (CPU) for the same workload."
+"HPA: ceil(current \u00d7 metric / target)",
+"Utilization is % of requests, not limits",
+"HPA pods \u00b7 VPA size \u00b7 CA nodes \u00b7 KEDA events"
 ],
 "methods": [],
 "intro": [
