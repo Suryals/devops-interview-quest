@@ -4,7 +4,7 @@
 "cat": "host",
 "icon": "box",
 "t": "Pods & Container Lifecycle",
-"s": "The atomic unit: shared namespaces, init/sidecar ordering, probes, restarts, QoS",
+"s": "The atomic unit of scheduling",
 "quick": [
 "One or more containers sharing one IP",
 "Init containers first; sidecars run alongside",
@@ -47,7 +47,7 @@
 "cat": "host",
 "icon": "layers",
 "t": "Deployments, StatefulSets & Friends",
-"s": "Rollout mechanics, rollback, stable identity, node daemons, and batch work",
+"s": "Rollouts, rollbacks, stable identity",
 "quick": [
 "Deployment rolls pods via ReplicaSets",
 "Rollback = re-scale the previous ReplicaSet",
@@ -90,7 +90,7 @@
 "cat": "host",
 "icon": "gauge",
 "t": "Scheduling, Resources & Placement",
-"s": "Requests vs limits, affinity, taints/tolerations, spread, and preemption",
+"s": "Where pods land, and why",
 "quick": [
 "Scheduler places by requests, not limits",
 "Over CPU = throttled; over memory = OOMKill",
@@ -133,7 +133,7 @@
 "cat": "host",
 "icon": "filetext",
 "t": "ConfigMaps & Secrets",
-"s": "Env vs volume consumption, update propagation, immutability, and real secrecy",
+"s": "ConfigMaps, Secrets, and their traps",
 "quick": [
 "Env vars freeze at start; volumes refresh",
 "Secret base64 is encoding, not encryption",
@@ -176,7 +176,7 @@
 "cat": "host",
 "icon": "home",
 "t": "Control Plane & Node Components",
-"s": "api-server, etcd quorum, scheduler, controllers, kubelet \u2014 and what breaks when each dies",
+"s": "The brain of the cluster",
 "quick": [
 "All state flows through the api-server",
 "etcd quorum: 3 nodes tolerate losing 1",
@@ -219,7 +219,7 @@
 "cat": "server",
 "icon": "shield",
 "t": "RBAC & ServiceAccounts",
-"s": "Roles, bindings, projected tokens, auth can-i, and decoding 403s",
+"s": "Who can do what, where",
 "quick": [
 "Allow-only and additive \u2014 no deny rules",
 "RoleBinding + ClusterRole = one namespace",
@@ -262,7 +262,7 @@
 "cat": "server",
 "icon": "puzzle",
 "t": "CRDs, Controllers & Operators",
-"s": "Extending the API, the reconcile loop, status vs spec, finalizers",
+"s": "Extending Kubernetes itself",
 "quick": [
 "A CRD teaches the API a new resource type",
 "Controllers reconcile actual toward spec",
@@ -305,7 +305,7 @@
 "cat": "client",
 "icon": "plug",
 "t": "Services & kube-proxy",
-"s": "ClusterIP, NodePort, LoadBalancer \u2014 and the DNAT machinery underneath",
+"s": "Stable IPs over ephemeral pods",
 "quick": [
 "Stable virtual IP + DNS over pod churn",
 "ClusterIP is kube-proxy rules, not a NIC",
@@ -348,7 +348,7 @@
 "cat": "client",
 "icon": "satellite",
 "t": "Cluster DNS (CoreDNS)",
-"s": "Name forms, resolv.conf search magic, ndots:5, and debugging lookups",
+"s": "How names find pods",
 "quick": [
 "Names: svc.namespace.svc.cluster.local",
 "kubelet writes resolv.conf with ndots:5",
@@ -391,7 +391,7 @@
 "cat": "client",
 "icon": "globe",
 "t": "Ingress & L7 Routing",
-"s": "Host/path rules, TLS termination, controllers, and 404/502 forensics",
+"s": "HTTP routing into the cluster",
 "quick": [
 "L7 rulebook: host/path \u2192 backend Service",
 "Does nothing without an ingress controller",
@@ -434,7 +434,7 @@
 "cat": "client",
 "icon": "shield",
 "t": "NetworkPolicies",
-"s": "From default-allow to zero-trust: selectors, additive rules, DNS gotcha",
+"s": "Firewalling pod traffic",
 "quick": [
 "Selecting a pod flips it to default-deny",
 "Additive allow-lists \u2014 no deny, no order",
@@ -477,7 +477,7 @@
 "cat": "client",
 "icon": "cable",
 "t": "CNI & the Pod Network",
-"s": "The IP-per-pod contract, what plugins actually do, and how it breaks",
+"s": "The pod network contract",
 "quick": [
 "Contract: pod IPs route with no NAT",
 "A CNI plugin wires pods and routes nodes",
@@ -520,7 +520,7 @@
 "cat": "client",
 "icon": "layers",
 "t": "PVs, PVCs & StorageClasses",
-"s": "The full storage lifecycle: provisioning, binding, reclaim, expansion",
+"s": "The full PVC \u2192 PV lifecycle",
 "quick": [
 "PVC requests \u00b7 PV supplies \u00b7 SC provisions",
 "Binding is exclusive 1:1 via claimRef",
@@ -564,7 +564,7 @@
 "cat": "concept",
 "icon": "terminal",
 "t": "The Triage Method",
-"s": "Observe, hypothesize, test \u2014 the loop interviewers actually grade",
+"s": "The loop interviewers grade",
 "quick": [
 "Observe \u2192 hypothesize \u2192 test \u2192 repeat",
 "describe + logs --previous + events",
@@ -609,7 +609,7 @@
 "cat": "concept",
 "icon": "box",
 "t": "Pod Failure States",
-"s": "Pending, CrashLoopBackOff, ImagePullBackOff and friends \u2014 decoded",
+"s": "Reading every failure state",
 "quick": [
 "Pending = unschedulable; events say why",
 "CrashLoop: read the exit code (1/137/143)",
@@ -654,7 +654,7 @@
 "cat": "concept",
 "icon": "gauge",
 "t": "Node Troubleshooting",
-"s": "NotReady, pressure evictions, cordon/drain, and what happens to orphaned pods",
+"s": "NotReady, drains, and evictions",
 "quick": [
 "NotReady = kubelet stopped reporting",
 "drain = cordon + evict, honors PDBs",
@@ -700,7 +700,7 @@
 "cat": "concept",
 "icon": "cable",
 "t": "Service & App Debugging",
-"s": "No traffic, 502s, DNS failures, and stuck rollouts \u2014 the app-layer playbook",
+"s": "Service-level debugging",
 "quick": [
 "No traffic? Check endpoints first",
 "Running 0/1 = readiness probe failing",
@@ -747,7 +747,7 @@
 "cat": "server",
 "icon": "layers",
 "t": "OpenShift Platform Delta",
-"s": "What changes when your Kubernetes becomes OpenShift \u2014 projects, oc, cluster operators, machine configs",
+"s": "What Red Hat adds and restricts",
 "quick": [
 "K8s + OAuth, registry, Routes, SCCs",
 "Projects are namespaces with guardrails",
@@ -791,7 +791,7 @@
 "cat": "server",
 "icon": "shield",
 "t": "Security Context Constraints (SCC)",
-"s": "Why root-assuming images die on OpenShift \u2014 restricted-v2, arbitrary UIDs, and fixing images the right way",
+"s": "Why root images break here",
 "quick": [
 "restricted-v2: no root, random UID",
 "Fix the image (group 0), not the policy",
@@ -835,7 +835,7 @@
 "cat": "server",
 "icon": "globe",
 "t": "Routes & TLS Termination",
-"s": "OpenShift's HAProxy-backed ingress \u2014 edge vs passthrough vs re-encrypt, sharding, and cert pitfalls",
+"s": "OpenShift's front door",
 "quick": [
 "Route maps hostname \u2192 Service via HAProxy",
 "TLS: edge, passthrough, or re-encrypt",
@@ -879,7 +879,7 @@
 "cat": "server",
 "icon": "box",
 "t": "ImageStreams, Builds & Deploy Flow",
-"s": "OpenShift's image supply chain \u2014 ImageStream tag tracking, S2I builds, triggers, and the DC-to-Deployment shift",
+"s": "ImageStreams, S2I, and builds",
 "quick": [
 "ImageStream tags point at image SHAs",
 "S2I builds from source, no Dockerfile",
@@ -924,7 +924,7 @@
 "cat": "concept",
 "icon": "gauge",
 "t": "SLIs, SLOs & Error Budgets",
-"s": "Measuring reliability as good/total events and spending the gap deliberately",
+"s": "Reliability as a spendable budget",
 "quick": [
 "SLI measures \u00b7 SLO targets \u00b7 budget = rest",
 "99.9% monthly \u2248 43 minutes of downtime",
@@ -960,7 +960,7 @@
 "cat": "concept",
 "icon": "alert",
 "t": "SLO Alerting & Burn Rates",
-"s": "Multi-window multi-burn-rate paging instead of noisy raw thresholds",
+"s": "Paging on burn rate, not blips",
 "quick": [
 "Burn rate 1 = budget gone at window end",
 "Page at 14.4x/1h and 6x/6h burn",
@@ -996,7 +996,7 @@
 "cat": "concept",
 "icon": "radio",
 "t": "Incident Management",
-"s": "Incident command roles, mitigate-first doctrine, and clean handoffs",
+"s": "Command structure and mitigation",
 "quick": [
 "IC coordinates; only Ops changes things",
 "Mitigate first \u2014 rollback, flag, shed",
@@ -1032,7 +1032,7 @@
 "cat": "concept",
 "icon": "shield",
 "t": "Blameless Postmortems",
-"s": "Turning incidents into system fixes without destroying the information supply",
+"s": "Learning without blame",
 "quick": [
 "Blame the system, not the person",
 "Timeline, causes, owned action items",
@@ -1068,7 +1068,7 @@
 "cat": "concept",
 "icon": "layers",
 "t": "Kubernetes Autoscaling",
-"s": "HPA math on requests, VPA, node autoscaling, and why they fight",
+"s": "HPA, VPA, and node scaling",
 "quick": [
 "HPA: ceil(current \u00d7 metric / target)",
 "Utilization is % of requests, not limits",
