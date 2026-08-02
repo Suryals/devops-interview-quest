@@ -36,7 +36,7 @@ const CAT_SOFT: Record<string, string> = {
 const WHO_TEXT: Record<string, string> = { c: "text-[hsl(var(--client))]", s: "text-[hsl(var(--server))]", u: "text-[hsl(var(--concept))]" };
 
 function MethodChip({ m }: { m: string }) {
-  return <code className="rounded-md border bg-secondary px-1.5 py-0.5 text-[11px] text-foreground/80">{m}</code>;
+  return <code className="max-w-[32%] truncate rounded-md border bg-secondary px-1.5 py-0.5 text-[11px] text-foreground/80" title={m}>{m}</code>;
 }
 
 /* ---------------- app state ---------------- */
