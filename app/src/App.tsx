@@ -107,7 +107,7 @@ export default function App() {
               &gt;_
             </div>
             <div className="leading-tight">
-              <div className="cursor-blink font-display text-xl uppercase tracking-wide text-[hsl(var(--primary))]">Ops Interview Quest</div>
+              <div className="cursor-blink font-display text-xl uppercase tracking-wide text-[hsl(var(--primary))]">DevOps Interview Quest</div>
               <div className="text-[11px] text-muted-foreground">DEVOPS · SRE · K8S · OPENSHIFT</div>
             </div>
           </div>
@@ -360,7 +360,7 @@ function Quest({ st, setSt, addXP, showToast, rank, onReset }: {
   };
 
   const share = () => {
-    const lines = [`🗺️ Ops Interview Quest — spec 2026-07-28`, `Rank: ${rank} · ${st.xp} XP`];
+    const lines = [`🗺️ DevOps Interview Quest — spec 2026-07-28`, `Rank: ${rank} · ${st.xp} XP`];
     LEVELS.forEach(L => { if (st.best[L.id] !== undefined) lines.push(`Level ${L.n} ${L.t}: ${st.best[L.id]}%${st.badges.has(L.id) ? " " + L.badge.split(" ")[0] : ""}`); });
     if (st.badges.has("explorer")) lines.push("🧭 Explorer: all 12 concepts visited");
     lines.push("DevOps / SRE interview prep — K8s · OpenShift · SRE");

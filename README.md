@@ -1,4 +1,4 @@
-# 🧰 Ops Interview Quest
+# 🧰 DevOps Interview Quest
 
 A gamified study companion for **DevOps / SRE interview preparation** — Kubernetes, OpenShift, and SRE practice. Built on the quest-engine extracted from [MCP Architecture Quest](../../Downloads/mcp-architecture-quest/): concept cards with three-depth deep dives, domain-mapped quiz levels with random draws from a question bank, runbook-ordering puzzles, XP/badges, saved progress, and an AI guide in every deep dive.
 
