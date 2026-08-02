@@ -36,7 +36,7 @@ const CAT_SOFT: Record<string, string> = {
 const WHO_TEXT: Record<string, string> = { c: "text-[hsl(var(--client))]", s: "text-[hsl(var(--server))]", u: "text-[hsl(var(--concept))]" };
 
 function MethodChip({ m }: { m: string }) {
-  return <code className="max-w-[32%] truncate rounded-md border bg-secondary px-1.5 py-0.5 text-[11px] text-foreground/80" title={m}>{m}</code>;
+  return <code className="max-w-[48%] truncate rounded-md border bg-secondary px-1.5 py-0.5 text-[11px] text-foreground/80" title={m}>{m}</code>;
 }
 
 /* ---------------- app state ---------------- */
@@ -222,7 +222,7 @@ function ConceptCard({ k, e, visited, onOpen }: { k: string; e: Concept; visited
           <li key={i} className="flex gap-1.5 text-xs text-muted-foreground"><span className="text-border">—</span><span className="line-clamp-1">{q}</span></li>
         ))}
       </ul>
-      {e.methods.length > 0 && <div className="flex h-[24px] gap-1.5 overflow-hidden">{e.methods.slice(0, 3).map(m => <MethodChip key={m} m={m} />)}</div>}
+      {e.methods.length > 0 && <div className="flex h-[24px] gap-1.5 overflow-hidden">{e.methods.slice(0, 2).map(m => <MethodChip key={m} m={m} />)}</div>}
       <div className="mt-auto flex items-center pt-0.5">
         <span className="text-xs font-semibold text-[hsl(var(--host))] transition-transform duration-200 group-hover:translate-x-0.5">Deep dive →</span>
         {visited && <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--good-text))]"><Check size={11} /> visited</span>}
