@@ -93,7 +93,7 @@
 "s": "Where pods land, and why",
 "quick": [
 "Scheduler places by requests, not limits",
-"Over CPU = throttled; over memory = OOMKill",
+"CPU over limit throttles; memory OOMKills",
 "Taints repel nodes; affinity attracts pods"
 ],
 "methods": [
