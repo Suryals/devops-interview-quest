@@ -6,7 +6,7 @@ BANK_MAP = {  # ops domains
   "openshift": "openshift-questions.json",
   "sre": "sre-questions.json",
 }
-CARD_FILES = ["detail-cards.json", "security-cards.json", "ecosystem-cards.json", "extra-cards.json"]
+CARD_FILES = ["core-cards.json", "netstore-cards.json", "troubleshoot-cards.json", "openshift-cards.json", "sre-cards.json"]
 D = "/tmp/quest-bank-ops"
 APP = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app", "src"))
 

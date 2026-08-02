@@ -1,1 +1,2499 @@
-{"core": [], "netstore": [], "troubleshoot": [], "openshift": [], "sre": []}
+{
+"core": [
+{
+"q": "A container's liveness probe fails and the kubelet declares it unhealthy. What actually happens to the Pod?",
+"o": [
+"The kubelet kills and restarts only that container in place; the Pod keeps its name, IP, and node assignment",
+"The endpoints controller removes the Pod's IP from the Service's EndpointSlices, but the container keeps running",
+"The Pod is deleted and rescheduled to a different node by the scheduler",
+"The container is throttled by the CFS quota until it recovers"
+],
+"a": 0,
+"x": "A failed liveness probe only restarts the individual container in place; the Pod object, IP, and node survive. Removing endpoints on failure is what readiness does instead.",
+"h": "Think per-container, not per-pod.",
+"t": "Interviewers hope you'll say 'the pod restarts' \u2014 it doesn't."
+},
+{
+"q": "You run `kubectl describe pod web-0` and see:\nLast State: Terminated\n  Reason: OOMKilled\n  Exit Code: 137\nWhat does this tell you?",
+"o": [
+"The container exceeded its CPU limit and was throttled",
+"The container exceeded its memory limit and the kernel OOM killer killed it",
+"The container received SIGTERM during a graceful pod deletion",
+"The liveness probe failed and the kubelet restarted the container"
+],
+"a": 1,
+"x": "Exit code 137 with reason OOMKilled means the process allocated past its memory limit and the kernel OOM killer terminated it; CPU limits only throttle, they never kill."
+},
+{
+"q": "Why does a Pod need a hidden 'pause' (infrastructure) container?",
+"o": [
+"To enforce CPU/memory limits via cgroups",
+"To run health checks independent of the app container",
+"To hold open the shared network/IPC namespaces so app containers can join them and the Pod IP survives an app container restart",
+"To provide DNS resolution for the Pod"
+],
+"a": 2,
+"x": "The pause container owns the Pod's network and IPC namespaces; app containers join those namespaces, which is mechanically why the Pod IP survives an app container crashing and restarting."
+},
+{
+"q": "Your team sets failureThreshold: 30 and periodSeconds: 10 on a startupProbe for a slow-booting JVM app. What is the effective startup budget, and what happens to the other probes during that window?",
+"o": [
+"60 seconds; liveness runs normally throughout",
+"300 seconds; readiness runs but liveness is suspended",
+"30 seconds; both probes run in parallel with the startup probe",
+"300 seconds; both liveness and readiness are suppressed until the startup probe succeeds once"
+],
+"a": 3,
+"x": "The startup budget is failureThreshold x periodSeconds = 30 x 10s = 300s, and a startup probe suppresses both liveness and readiness until it succeeds once."
+},
+{
+"q": "A Pod has an init container and a native sidecar (log-shipper with restartPolicy: Always) ahead of the main app container. In what order do they start, and does the kubelet wait for the sidecar to exit before starting the app?",
+"o": [
+"Init container runs to completion first, the sidecar starts next and is not waited on to exit \u2014 the app starts once the sidecar is launched",
+"All three start simultaneously",
+"Sidecar and app start together, and the init container runs last",
+"The kubelet waits for the sidecar to exit before starting the app container"
+],
+"a": 0,
+"x": "A native sidecar is an init container with restartPolicy: Always \u2014 the kubelet starts it in init order but doesn't wait for it to exit, and keeps it running for the Pod's life."
+},
+{
+"q": "A node is under memory pressure and the kubelet must evict pods. Pod A has requests equal to limits for CPU and memory (Guaranteed QoS). Pod B has no requests or limits set at all (BestEffort). Which is evicted first?",
+"o": [
+"Pod A, because Guaranteed pods are evicted first to protect capacity",
+"Pod B, because BestEffort pods are evicted before Burstable and Guaranteed pods",
+"Both are evicted simultaneously since QoS doesn't affect eviction order",
+"Neither \u2014 eviction order depends only on pod age"
+],
+"a": 1,
+"x": "QoS class governs eviction order under node pressure: BestEffort pods go first, then Burstable pods exceeding requests, and Guaranteed pods are evicted last."
+},
+{
+"q": "kubectl get pod shows Phase: Running, but kubectl describe shows a container state of Waiting with reason CrashLoopBackOff. What should you conclude?",
+"o": [
+"The Pod phase is wrong; Kubernetes has a bug reporting Running incorrectly",
+"The container passed its liveness probe and is healthy",
+"Pod phase is a coarse summary and can show Running even while a container is Waiting/crash-looping; check per-container state and kubectl logs --previous",
+"This is only possible if the readiness probe is misconfigured"
+],
+"a": 2,
+"x": "Pod phase is a coarse rollup while container states carry the actionable detail \u2014 'the pod says Running' proves very little on its own."
+},
+{
+"q": "$ kubectl rollout status deployment/web\nWaiting for deployment \"web\" rollout to finish: 3 out of 10 new replicas have been updated...\n\n$ kubectl get deploy web -o jsonpath='{.status.conditions[?(@.type==\"Progressing\")].reason}'\nProgressDeadlineExceeded\n\nWhat is the correct diagnosis, and will Kubernetes fix it automatically?",
+"o": [
+"The rollout is paused; resume it with kubectl rollout resume",
+"maxUnavailable is set too low; increase it and the rollout will finish",
+"The old ReplicaSet was garbage collected; nothing can be done",
+"The rollout is stuck (e.g. a bad image or failing readiness) and exceeded progressDeadlineSeconds; Kubernetes will NOT auto-rollback \u2014 fix with kubectl rollout undo or a corrected image"
+],
+"a": 3,
+"x": "A stuck rollout only flips the Progressing condition to False with reason ProgressDeadlineExceeded after the default 600s deadline; Kubernetes never rolls back on its own."
+},
+{
+"q": "You run `kubectl scale deployment/web --replicas=20`. Does this trigger a new ReplicaSet and rolling update?",
+"o": [
+"No \u2014 only changes to .spec.template trigger a new ReplicaSet; replica count changes do not",
+"Yes \u2014 any change to the Deployment object creates a new revision",
+"Yes, but only if maxSurge is greater than 0",
+"No, because scale operations bypass the Deployment controller entirely"
+],
+"a": 0,
+"x": "Only a change to .spec.template changes the pod-template-hash and creates a new ReplicaSet/revision; scaling replicas does not."
+},
+{
+"q": "You set revisionHistoryLimit: 0 on a Deployment. Weeks later a bad release ships and you try kubectl rollout undo. What happens?",
+"o": [
+"It works normally; revisionHistoryLimit only affects kubectl rollout history output",
+"Rollback is impossible \u2014 the old ReplicaSets holding prior templates were garbage collected",
+"Kubernetes automatically restores revision 1 regardless of the limit",
+"The Deployment reverts to its default template"
+],
+"a": 1,
+"x": "Rollback works by scaling an old ReplicaSet back up; revisionHistoryLimit: 0 lets those old ReplicaSets be garbage-collected, silently destroying rollback ability."
+},
+{
+"q": "Why does a StatefulSet require a headless Service (clusterIP: None)?",
+"o": [
+"To load-balance traffic evenly across replicas",
+"To let the scheduler assign stable node names",
+"To provide the stable per-pod DNS record <pod>.<svc>.<ns>.svc.cluster.local that clustered apps use to find peers",
+"To automatically encrypt traffic between replicas"
+],
+"a": 2,
+"x": "The headless Service is what gives each ordinal a stable DNS record, which is exactly what clustered systems like Kafka or PostgreSQL need to find their peers."
+},
+{
+"q": "You scale a StatefulSet from 5 replicas down to 0 and back up to 5. What happens to the PVCs created via volumeClaimTemplates?",
+"o": [
+"They are deleted on scale-down and recreated empty on scale-up",
+"They are merged into a single shared PVC",
+"They are deleted only if persistentVolumeClaimRetentionPolicy is unset",
+"They are NOT deleted by default; each ordinal reattaches its original PVC (e.g. web-1 remounts www-web-1) with its old data"
+],
+"a": 3,
+"x": "PVC binding is sticky and PVCs are not deleted by default even when the StatefulSet is scaled down or deleted \u2014 a deliberate data-safety choice."
+},
+{
+"q": "A 3-replica StatefulSet with the default podManagementPolicy is mid-rollout and web-0 crashloops on the new image. What happens to web-1 and web-2?",
+"o": [
+"The rollout wedges \u2014 with OrderedReady, later ordinals are never touched until web-0 becomes Ready",
+"They update anyway since StatefulSets always update in parallel",
+"They roll back automatically",
+"They are deleted to make room for a healthy web-0"
+],
+"a": 0,
+"x": "With the default OrderedReady policy, pods are created and updated strictly in order \u2014 a crashlooping web-0 wedges the entire rollout."
+},
+{
+"q": "A DaemonSet runs a log-shipping agent. Why do its pods keep running on a node that is being drained of ordinary workloads?",
+"o": [
+"DaemonSet pods run with root privileges that exempt them from draining",
+"The controller automatically adds tolerations for node.kubernetes.io/not-ready and unreachable, keeping DaemonSet pods on nodes ordinary workloads are evicted from",
+"DaemonSets are excluded from node affinity rules entirely",
+"kubectl drain never affects any pod by design"
+],
+"a": 1,
+"x": "The DaemonSet controller adds tolerations for node lifecycle taints automatically, which is why log agents and CNI plugins keep running on nodes ordinary workloads are being evicted from."
+},
+{
+"q": "kubectl describe pod shows:\nEvents:\n  Warning  FailedScheduling  0/5 nodes are available: 3 Insufficient cpu, 2 node(s) had untolerated taint {dedicated: gpu}\nWhat two independent fixes map to these two failure reasons?",
+"o": [
+"Add more replicas; change the Service type",
+"Increase the liveness probe timeout; change restartPolicy",
+"Lower CPU requests or add nodes for the Insufficient cpu nodes; add a toleration or remove the taint for the tainted nodes",
+"Enable preemptionPolicy: Never; delete the PriorityClass"
+],
+"a": 2,
+"x": "Each named filter in a FailedScheduling event maps one-to-one to a fix: resource shortfalls need lower requests or more nodes, taint mismatches need a toleration or taint removal."
+},
+{
+"q": "Which statement correctly describes how the scheduler uses requests versus limits?",
+"o": [
+"The scheduler sums limits across pods to decide node fit",
+"The scheduler uses live resource usage (kubectl top) to decide node fit",
+"The scheduler ignores both and relies on the kubelet to reject overloaded pods",
+"The scheduler only looks at requests; limits are enforced later by the kernel, not consulted for placement"
+],
+"a": 3,
+"x": "The scheduler fits pods onto nodes using only requests; limits are a kernel-enforced ceiling checked later, never part of the placement decision.",
+"t": "Classically confused with limits \u2014 the scheduler never looks at limits or live usage."
+},
+{
+"q": "A container exceeds its CPU limit under load. What happens to it, versus a container that exceeds its memory limit?",
+"o": [
+"The CPU-limited container is throttled by the CFS quota (slows down, never killed); the memory-limited container is OOMKilled by the kernel (exit 137)",
+"Both are OOMKilled immediately",
+"Both are throttled without being killed",
+"The CPU-limited container is OOMKilled; the memory-limited container is throttled"
+],
+"a": 0,
+"x": "CPU is a compressible resource enforced via CFS quota (throttling); memory is incompressible, so exceeding its limit triggers the kernel OOM killer.",
+"h": "CPU is compressible, memory is not.",
+"t": "The tempting wrong answer is 'it gets killed' for CPU \u2014 that's only true for memory."
+},
+{
+"q": "A required podAntiAffinity on topology.kubernetes.io/hostname is set for a 4-replica Deployment running on a 3-node cluster. What happens to the 4th replica?",
+"o": [
+"It preempts a lower-priority pod on one of the 3 nodes",
+"It stays Pending forever \u2014 the constraint is unsatisfiable with only 3 nodes",
+"It is scheduled onto a node already hosting a replica, ignoring the constraint",
+"The scheduler automatically relaxes hard anti-affinity after a timeout"
+],
+"a": 1,
+"x": "Required (hard) anti-affinity that can't be satisfied leaves the pod Pending forever; nothing is broken, the constraint is simply unsatisfiable given the node count."
+},
+{
+"q": "You taint a node dedicated=batch:NoSchedule and add a matching toleration to your batch pods, but you set no nodeAffinity. What's wrong with expecting the pods to land only on that node?",
+"o": [
+"NoSchedule taints require an explicit nodeSelector to have any effect at all",
+"Tolerations are ignored unless combined with a PriorityClass",
+"A toleration only unlocks the door \u2014 it doesn't pull the pod there; without nodeAffinity the pods may still land on general nodes",
+"NoSchedule taints don't apply to Deployments, only to bare Pods"
+],
+"a": 2,
+"x": "Dedicated node pools need both the taint (to repel other workloads) and matching nodeAffinity (to attract your workloads); a toleration alone never steers a pod there."
+},
+{
+"q": "What is the key difference in effect between a NoSchedule taint and a NoExecute taint?",
+"o": [
+"NoSchedule is a hard filter and NoExecute is only a scoring preference",
+"NoExecute only applies to DaemonSets",
+"NoSchedule evicts running pods; NoExecute only blocks new placements",
+"NoSchedule blocks new placements but leaves running pods alone; NoExecute additionally evicts already-running pods lacking a matching toleration"
+],
+"a": 3,
+"x": "Taint effects escalate: NoSchedule only blocks new placement, while NoExecute also evicts pods already running there unless they tolerate it (optionally after tolerationSeconds).",
+"t": "Commonly swapped in interviews \u2014 remember NoExecute is the one that evicts."
+},
+{
+"q": "A node stops heartbeating and goes NotReady. Roughly how long until its pods are evicted and replacements scheduled elsewhere, and what mechanism causes it?",
+"o": [
+"About 300 seconds \u2014 the node controller adds node.kubernetes.io/unreachable:NoExecute, and pods have a default 300s toleration for it before eviction",
+"Immediately \u2014 NotReady nodes have their pods evicted within seconds",
+"Never automatically \u2014 an operator must manually cordon and drain the node",
+"40 seconds, matching the node heartbeat timeout exactly"
+],
+"a": 0,
+"x": "The node controller marks the node NotReady around 40s after it stops heartbeating and taints it unreachable:NoExecute; pods carry a default 300s toleration for that taint before eviction."
+},
+{
+"q": "You update a ConfigMap that's consumed via env vars (valueFrom.configMapKeyRef) in a running Deployment. Nothing changes in the running pods. Why?",
+"o": [
+"ConfigMaps can't be consumed via env vars, only volumes",
+"Env vars are resolved once at container creation; only a pod restart (e.g. kubectl rollout restart) picks up the new values",
+"The ConfigMap update didn't actually persist to etcd",
+"Env var updates require immutable: true to propagate"
+],
+"a": 1,
+"x": "Environment variables from a ConfigMap or Secret are resolved exactly once at container creation; updating the object afterward changes nothing until the pod restarts."
+},
+{
+"q": "The same ConfigMap is mounted as a volume, but the container mounts a single key via subPath. Does the file update live when the ConfigMap changes?",
+"o": [
+"Yes, subPath mounts always refresh via the ..data symlink swap",
+"Yes, but only after the pod is deleted and recreated",
+"No \u2014 subPath mounts copy the file rather than symlink through ..data, so it never sees updates",
+"No, because ConfigMaps are always immutable once mounted"
+],
+"a": 2,
+"x": "Normal volume mounts update atomically via a symlink swap through ..data, but subPath mounts copy the file instead, so they never receive live updates."
+},
+{
+"q": "Is base64 encoding in a Secret's data field a form of encryption?",
+"o": [
+"Yes, base64 provides adequate encryption for etcd-at-rest storage",
+"Yes, but only for Secrets, not ConfigMaps",
+"No, but etcd encrypts Secrets automatically by default with no configuration",
+"No \u2014 base64 is encoding, not encryption; real protection requires enabling encryption at rest via an EncryptionConfiguration with a KMS provider"
+],
+"a": 3,
+"x": "base64 exists so arbitrary bytes survive JSON transport; by default Secrets sit in etcd as plaintext, so real protection needs encryption at rest via a KMS provider."
+},
+{
+"q": "A Deployment references a Secret key via a required env var (valueFrom, no optional: true), but the key doesn't exist. What happens?",
+"o": [
+"The container fails to start with CreateContainerConfigError",
+"The container starts with an empty string for that variable",
+"The Pod is stuck ContainerCreating with mount errors in Events",
+"The API server rejects the Pod at admission time"
+],
+"a": 0,
+"x": "A required env-var reference to a missing key blocks the container from starting with CreateContainerConfigError; a missing volume-referenced object instead leaves the Pod stuck ContainerCreating with mount errors."
+},
+{
+"q": "Why does setting immutable: true on a ConfigMap reduce load on the API server at scale?",
+"o": [
+"It compresses the ConfigMap's data before storage",
+"The kubelet stops opening a watch for it, removing per-node watch load across the cluster",
+"It moves the ConfigMap's storage from etcd to tmpfs",
+"It disables RBAC checks on the object"
+],
+"a": 1,
+"x": "immutable: true both blocks further edits and stops kubelets from watching the object, which removes significant watch load in clusters with tens of thousands of pods."
+},
+{
+"q": "Your Ingress controller needs a TLS secret, but a teammate's kubectl create secret generic produced type Opaque. What breaks, and why?",
+"o": [
+"Nothing breaks \u2014 Ingress controllers accept any Secret type",
+"The Secret is auto-converted to kubernetes.io/tls on first use",
+"Ingress controllers require type kubernetes.io/tls specifically, which mandates tls.crt and tls.key keys; an Opaque secret won't be accepted",
+"The Pod using the Ingress fails RBAC checks"
+],
+"a": 2,
+"x": "Secret types are validation contracts consumers key off of \u2014 Ingress controllers specifically demand type kubernetes.io/tls with tls.crt and tls.key."
+},
+{
+"q": "$ kubectl get nodes\nNAME     STATUS     ROLES           AGE   VERSION\ncp-1     Ready      control-plane   90d   v1.31.2\nnode-1   Ready      <none>          90d   v1.31.2\nnode-2   NotReady   <none>          90d   v1.31.2\n\n$ kubectl describe node node-2 | grep -A2 Taints\nTaints: node.kubernetes.io/unreachable:NoExecute\n        node.kubernetes.io/unreachable:NoSchedule\n\nWhat happened to node-2, and what happens to pods running on it?",
+"o": [
+"node-2's api-server crashed; pods on it are immediately deleted",
+"node-2 lost etcd quorum; the cluster is now read-only",
+"The scheduler marked node-2 unschedulable via kubectl cordon; running pods stay untouched",
+"node-2's kubelet stopped heartbeating, the node controller marked it NotReady and tainted it; pods get evicted after the default 300s toleration expires, though original containers may still be running on the cut-off node"
+],
+"a": 3,
+"x": "A missed heartbeat leads the node controller to mark the node NotReady and apply the unreachable:NoExecute taint; replacement pods appear elsewhere after the 300s toleration, but the original containers may still be alive on the partitioned node."
+},
+{
+"q": "The kube-apiserver goes down entirely but etcd, kubelet, and kube-proxy are healthy. What still works, and what doesn't?",
+"o": [
+"Existing pods keep running and Services keep routing traffic via existing kube-proxy rules; but no kubectl commands, new pods, scaling, or rescheduling can happen",
+"Nothing works at all \u2014 the whole cluster stops serving traffic",
+"New pods can still be scheduled since the scheduler talks to etcd directly",
+"Only DNS resolution breaks; everything else continues normally"
+],
+"a": 0,
+"x": "The api-server is the only component with an etcd connection; when it's down the data plane runs on autopilot but nothing can change, since the scheduler and controllers only ever talk through the api-server."
+},
+{
+"q": "Your 5-node etcd cluster loses 3 members simultaneously. What happens to the cluster?",
+"o": [
+"It keeps operating normally since 2 members remain online",
+"It loses quorum (needs a majority of 5, i.e. 3) and refuses all writes and consistent reads \u2014 the cluster freezes at its last committed state",
+"etcd automatically re-elects a leader from the remaining 2 and continues writes",
+"Only read operations are affected; writes continue via the surviving members"
+],
+"a": 1,
+"x": "etcd is a Raft cluster requiring a strict majority to commit writes; with only 2 of 5 members left, quorum is lost and the cluster freezes until a majority returns."
+},
+{
+"q": "New pods from a rollout and a scale-up are stuck Pending, with zero FailedScheduling events, while already-running pods are unaffected. Which control-plane component is most likely down?",
+"o": [
+"kube-controller-manager",
+"kubelet on the affected nodes",
+"kube-scheduler",
+"etcd"
+],
+"a": 2,
+"x": "New pods piling up in Pending with no scheduling events (and existing workloads unaffected) is the canonical signature of the scheduler itself being down."
+},
+{
+"q": "You delete a Deployment's pod manually while kube-controller-manager is down. What happens?",
+"o": [
+"The ReplicaSet controller creates a replacement pod after a short delay",
+"The scheduler recreates the pod directly, bypassing the ReplicaSet controller",
+"The api-server refuses the deletion since no controller is available",
+"No replacement pod appears \u2014 the reconciliation loop that would recreate it isn't running"
+],
+"a": 3,
+"x": "kube-controller-manager hosts the ReplicaSet controller's reconciliation loop; without it, the API accepts the deletion but nothing acts to restore the desired replica count."
+},
+{
+"q": "You can curl a Service's ClusterIP successfully but curl my-svc.my-ns.svc.cluster.local fails to resolve. What's the most likely cause?",
+"o": [
+"CoreDNS is down or misbehaving \u2014 DNS-based service discovery fails while raw IP routing (via existing kube-proxy rules) still works",
+"kube-proxy has crashed on every node",
+"The api-server is down",
+"etcd lost quorum"
+],
+"a": 0,
+"x": "CoreDNS is an addon Deployment, not a control-plane binary, but its failure mimics a total outage for name-based traffic while ClusterIP routing (kube-proxy's job) keeps working \u2014 the discriminating test interviewers like."
+},
+{
+"q": "A ClusterRole named 'view' is bound to a ServiceAccount via a RoleBinding in namespace 'dev' only. Can that ServiceAccount list pods in namespace 'prod'?",
+"o": [
+"Yes, because ClusterRoles always grant cluster-wide access regardless of binding type",
+"No \u2014 a namespaced RoleBinding referencing a ClusterRole grants those rules only within the binding's own namespace",
+"Yes, but only for read verbs like list and get",
+"No, because ClusterRoles cannot be referenced by RoleBindings at all"
+],
+"a": 1,
+"x": "The binding's scope wins: a ClusterRole referenced by a namespaced RoleBinding grants that ClusterRole's rules only within the binding's namespace, not cluster-wide.",
+"t": "The classic trap is assuming ClusterRole always means cluster-wide \u2014 it's the binding type that decides scope."
+},
+{
+"q": "A teammate wants to change an existing RoleBinding to point at a different ClusterRole by editing roleRef in place. Does this work?",
+"o": [
+"Yes, roleRef can be patched freely at any time",
+"Yes, but only for ClusterRoleBindings, not RoleBindings",
+"No \u2014 roleRef is immutable after creation; you must delete and recreate the binding (or use kubectl auth reconcile)",
+"No, RoleBindings themselves are entirely immutable, including subjects"
+],
+"a": 2,
+"x": "roleRef is deliberately immutable so an existing grant can't be silently repurposed; changing it requires deleting and recreating the binding."
+},
+{
+"q": "The API server returns: 'User system:serviceaccount:dev:app-sa cannot list resource \"deployments\" in API group \"apps\" in the namespace \"prod\"'. What's the correct first thing to check?",
+"o": [
+"Whether the ServiceAccount's token has expired",
+"Whether the api-server certificate is valid",
+"Whether etcd has quorum",
+"Whether there is a binding for that subject in the 'prod' namespace specifically, since RoleBindings don't cross namespaces"
+],
+"a": 3,
+"x": "Decoding a 403 starts with checking for a binding for that exact subject in the exact namespace named in the error, since RoleBindings never cross namespace boundaries."
+},
+{
+"q": "What's the difference between a 401 and a 403 response from the API server?",
+"o": [
+"401 means authentication failed (bad/expired token or cert); 403 means authentication succeeded but RBAC denied the action",
+"401 means RBAC denied the action; 403 means authentication failed",
+"Both mean the same thing \u2014 RBAC denial \u2014 just at different API versions",
+"401 only occurs for ServiceAccounts; 403 only occurs for human users"
+],
+"a": 0,
+"x": "401 is an authentication failure (identity unknown), while 403 means authentication succeeded but authorization was denied \u2014 conflating them sends you debugging the wrong layer."
+},
+{
+"q": "A developer with rights to create pods in namespace 'dev' insists they have no way to read Secrets there since they were never granted 'get secrets'. Is this reasoning sound?",
+"o": [
+"Yes \u2014 pod-create rights and secret-read rights are completely independent",
+"No \u2014 anyone who can create pods can mount any secret in that namespace into their pod, making pod-create rights secret-read rights in disguise",
+"Yes, unless they also have the 'impersonate' verb",
+"No, but only if automountServiceAccountToken is true"
+],
+"a": 1,
+"x": "A subject who can create pods can mount any secret in that namespace into a pod they control and read it that way, so pod-create rights are effectively secret-read rights."
+},
+{
+"q": "Why do modern ServiceAccount tokens (from the TokenRequest API) improve on legacy service-account-token Secrets?",
+"o": [
+"They are stored permanently in etcd for auditability",
+"They grant cluster-admin by default for easier debugging",
+"They are audience-bound, pod-bound (invalid once the pod dies), and time-limited (~1h, auto-refreshed), unlike legacy tokens which never expired",
+"They eliminate the need for RBAC entirely"
+],
+"a": 2,
+"x": "Projected TokenRequest tokens are scoped, short-lived, and tied to the pod's lifetime, unlike legacy service-account-token Secrets which never expired and sat readable in etcd."
+},
+{
+"q": "A teammate installs a CRD for PostgresCluster but no controller is deployed yet. They create a PostgresCluster object. What happens?",
+"o": [
+"The api-server rejects the object since no controller is registered",
+"A default StatefulSet is automatically created for it",
+"The object is stored but immediately marked Terminating until a controller appears",
+"The object is validated and stored in etcd like any resource, but nothing happens in the world \u2014 there's no behavior without a controller"
+],
+"a": 3,
+"x": "A CRD alone is schema registration; the api-server serves full CRUD for it, but without a controller reconciling it, creating an object changes nothing in the world."
+},
+{
+"q": "$ kubectl get postgrescluster main-db -o yaml\nspec:\n  replicas: 3\n  version: \"16\"\nstatus:\n  readyReplicas: 1\n  conditions:\n  - type: Progressing\n    status: \"True\"\n    reason: CreatingReplica\nWhat does the mismatch between spec.replicas and status.readyReplicas tell you, and who is allowed to write each field?",
+"o": [
+"spec is the desired state (user-writable) and status is the observed state (controller-writable only); here the controller has achieved 1 of the 3 desired replicas and is still working",
+"Both fields are user-writable; the mismatch means a validation webhook failed",
+"status.readyReplicas is set by the scheduler, not the controller",
+"The mismatch indicates the CRD schema is misconfigured"
+],
+"a": 0,
+"x": "The spec/status split is a write-ownership contract \u2014 users write spec (desired), only the controller writes status (observed) \u2014 so this mismatch simply shows reconciliation still in progress."
+},
+{
+"q": "A namespace is stuck in Terminating state indefinitely after deletion. What is the most likely cause?",
+"o": [
+"The api-server is down",
+"Some controller responsible for removing its finalizer is dead or erroring, so the finalizer list never empties and deletion never completes",
+"etcd lost quorum during the deletion",
+"The namespace has a NoExecute taint applied"
+],
+"a": 1,
+"x": "While finalizers are non-empty, deletion only sets deletionTimestamp and the object persists Terminating; a dead or erroring controller that never removes its finalizer is THE cause of stuck-Terminating objects."
+},
+{
+"q": "Why does deleting a CRD potentially wipe out related cloud resources (e.g. real databases an operator provisioned)?",
+"o": [
+"Deleting a CRD only removes the schema, never the custom resource instances",
+"It doesn't \u2014 CRDs and their instances are fully independent of any cleanup logic",
+"Deleting a CRD deletes every instance of that custom resource cluster-wide, and via the operator's own finalizer-driven cleanup this can cascade to deprovisioning real external resources",
+"Cloud resources are only affected if RBAC grants the 'escalate' verb"
+],
+"a": 2,
+"x": "Deleting a CRD deletes every instance of that resource cluster-wide, and if the operator's cleanup logic runs on that deletion, real external resources can be torn down too \u2014 which is why Helm deliberately leaves CRDs behind on uninstall."
+},
+{
+"q": "How do controllers avoid hammering the API server while tracking thousands of objects?",
+"o": [
+"They poll the API in a tight loop with rate limiting",
+"They cache objects in etcd directly, bypassing the api-server",
+"They subscribe to a Kafka-like event log maintained by etcd",
+"They use informers \u2014 a client-side watch plus in-memory cache feeding a deduplicating workqueue that worker goroutines reconcile"
+],
+"a": 3,
+"x": "Informers maintain a watch-fed local cache and enqueue object keys onto a deduplicating workqueue, letting a single controller pod track thousands of objects without polling the api-server."
+},
+{
+"q": "Two different controller instances both try to update the same custom resource's status at nearly the same time. How is the conflict resolved?",
+"o": [
+"Optimistic concurrency via resourceVersion causes the stale write to fail with a 409 Conflict, which the workqueue simply retries against the fresher object",
+"The api-server queues writes and applies them sequentially with no errors",
+"A distributed lock service external to Kubernetes must be used",
+"The first writer wins permanently and the second write is silently dropped"
+],
+"a": 0,
+"x": "Reconcilers rely on resourceVersion-based optimistic concurrency; a stale write fails with 409 Conflict and the workqueue retries it against the current object, no locking required."
+}
+],
+"netstore": [
+{
+"q": "Your Deployment shows 3/3 pods Running, but curl to the Service ClusterIP times out. What should you check first?",
+"o": [
+"kubectl get endpointslices for the Service \u2014 readiness probes may be failing",
+"Restart the pods",
+"Delete and recreate the Service",
+"Check the node's kubelet logs"
+],
+"a": 0,
+"x": "Running pods can still have failing readiness probes, which keeps them out of EndpointSlices (ready:true). A Service with no ready endpoints times out even though pods look healthy in kubectl get pods.",
+"t": "services"
+},
+{
+"q": "A teammate says 'ping 10.96.4.7 fails but curl 10.96.4.7:80 works, so the Service must be broken.' Why is this reasoning wrong?",
+"o": [
+"The ClusterIP only supports UDP, not ICMP or TCP",
+"ping requires root privileges inside the pod",
+"ClusterIP is a virtual IP enforced only by iptables/IPVS DNAT rules; ICMP has no rewrite rule so ping fails, while the TCP connection is correctly DNAT'd",
+"The Service is in fact broken and curl succeeded by coincidence"
+],
+"a": 2,
+"x": "No process listens on the ClusterIP anywhere \u2014 it's kernel rules programmed by kube-proxy. TCP connections get DNAT'd to a ready pod; ICMP has no such rule, so ping failing is expected, not a sign of breakage.",
+"t": "services"
+},
+{
+"q": "In a Service manifest, what is the difference between port and targetPort?",
+"o": [
+"They must always be equal",
+"port is what the Service listens on at the ClusterIP; targetPort is the container port traffic is DNAT'd to",
+"targetPort is only used for NodePort services",
+"port is randomly assigned by kube-proxy"
+],
+"a": 1,
+"x": "port is the ClusterIP-facing port clients dial (e.g. 80); targetPort is where DNAT lands on the pod (e.g. 8080), and can be a named port so different pods use different container ports.",
+"t": "services"
+},
+{
+"q": "500 office users share a single egress NAT IP and hit a Service with sessionAffinity: ClientIP. What incident pattern is likely?",
+"o": [
+"Even load balancing across all pods",
+"The Service silently ignores sessionAffinity behind NAT",
+"DNS round-robin overrides the affinity setting",
+"All 500 users stick to a single backend pod for up to 3 hours, leaving other pods idle"
+],
+"a": 3,
+"x": "ClientIP affinity uses conntrack keyed on source IP with a default 10800s (3h) timeout. Behind NAT, many real users share one source IP, so they all stick to the same pod \u2014 a classic 'one pod hot, rest idle' incident.",
+"t": "services"
+},
+{
+"q": "Why does a headless Service (clusterIP: None) exist, and what does it change about DNS?",
+"o": [
+"It disables DNS entirely for that Service",
+"It forces all traffic through NodePort",
+"It is only valid for LoadBalancer type Services",
+"It skips the virtual IP; DNS returns individual pod IPs as multiple A records instead of one VIP, letting clients pick a specific replica"
+],
+"a": 3,
+"x": "Headless Services program no kube-proxy rules; cluster DNS instead returns one A record per ready pod IP, which StatefulSets rely on for stable per-pod names like mysql-0.mysql.db.svc.cluster.local.",
+"t": "services"
+},
+{
+"q": "You run: kubectl describe svc web\n\nEndpoints: <none>\n\nkubectl get pods shows the backing Deployment's 3 pods as Running. What are the two most likely causes?",
+"o": [
+"The Service type is wrong, or the node is out of disk",
+"Selector label mismatch between the Service and the pods, or the pods are failing their readiness probes",
+"The ClusterIP CIDR is exhausted",
+"CoreDNS is down"
+],
+"a": 1,
+"x": "An empty Endpoints/EndpointSlice with Running pods points to either a selector/label typo (app: web vs app: webapp) or readiness probes failing, since only ready:true pods populate endpoints.",
+"h": "Recall the trap described for the services card: check endpoints, not pod status.",
+"t": "services"
+},
+{
+"q": "Why does IPVS mode scale better than iptables mode for kube-proxy in clusters with 5,000+ Services?",
+"o": [
+"IPVS runs entirely in userspace and skips the kernel",
+"iptables mode does not support TCP",
+"IPVS uses an in-kernel hash table with real scheduling algorithms instead of evaluating thousands of sequential iptables rules",
+"IPVS eliminates the need for EndpointSlices"
+],
+"a": 2,
+"x": "iptables mode evaluates rules sequentially; IPVS uses an in-kernel hash table with algorithms like rr, lc, sh, which scales far better at high Service counts.",
+"t": "services"
+},
+{
+"q": "What is the key behavioral difference between externalTrafficPolicy: Cluster and externalTrafficPolicy: Local for a NodePort/LoadBalancer Service?",
+"o": [
+"Cluster mode SNATs traffic (client IP is hidden) and forwards to any node; Local mode preserves the client source IP but drops traffic on nodes with no local backend pod",
+"Cluster mode is IPv6-only",
+"Local mode disables health checks entirely",
+"There is no functional difference, only a naming difference"
+],
+"a": 0,
+"x": "Cluster mode forwards to any node and SNATs, hiding the real client IP from pods. Local mode preserves the source IP but nodes without a local endpoint drop the traffic instead of forwarding it; cloud LBs pair this with health-check NodePorts.",
+"t": "services"
+},
+{
+"q": "A pod in namespace shop runs nslookup payments and it resolves successfully to a ClusterIP, even though the Service is also named payments. How is the short name resolved?",
+"o": [
+"CoreDNS guesses the namespace from the pod's labels",
+"kubelet writes a search list in /etc/resolv.conf (shop.svc.cluster.local, svc.cluster.local, cluster.local), so 'payments' is retried as payments.shop.svc.cluster.local",
+"Short names are cached from the last successful lookup",
+"The pod must have a hosts file entry pre-populated"
+],
+"a": 1,
+"x": "kubelet writes a 3-entry search list into every pod's resolv.conf; a lookup for 'payments' is silently expanded against that list until one succeeds \u2014 here, payments.shop.svc.cluster.local.",
+"t": "dns"
+},
+{
+"q": "An app makes frequent calls to an external API, api.stripe.com, and engineers notice spiky latency plus high CoreDNS query volume. What's the likely root cause?",
+"o": [
+"The external API is rate-limiting the cluster",
+"CoreDNS caching is disabled by default",
+"The pod's dnsPolicy is set to None",
+"ndots:5 makes api.stripe.com (2 dots) get expanded through the whole search list first, producing three guaranteed NXDOMAIN queries before the real upstream query fires"
+],
+"a": 3,
+"x": "With ndots:5, any name with fewer than 5 dots is tried against the search list before being sent upstream as-is, so external names like api.stripe.com generate extra NXDOMAIN lookups against CoreDNS \u2014 a classic ndots latency gotcha.",
+"t": "dns"
+},
+{
+"q": "A pod is configured with hostNetwork: true and dnsPolicy: ClusterFirst. Service names stop resolving from inside it. Why?",
+"o": [
+"For hostNetwork pods, ClusterFirst silently degrades to the node's resolv.conf instead of cluster DNS; ClusterFirstWithHostNet is required to keep cluster DNS",
+"hostNetwork pods can never resolve DNS",
+"The pod needs an explicit nameserver entry in its Service manifest",
+"hostNetwork disables CoreDNS cluster-wide"
+],
+"a": 0,
+"x": "ClusterFirst silently falls back to the node's own resolv.conf for hostNetwork pods. dnsPolicy: ClusterFirstWithHostNet is the documented fix to keep using cluster DNS in that case.",
+"t": "dns"
+},
+{
+"q": "You debug with: kubectl exec -it dbg -- nslookup mysql.db.svc.cluster.local\n\nName: mysql.db.svc.cluster.local\nAddress: 10.244.1.5\nAddress: 10.244.2.9\nAddress: 10.244.3.3\n\nWhat kind of Service is mysql, and why are there multiple addresses?",
+"o": [
+"A LoadBalancer Service with 3 external IPs",
+"A misconfigured Service with duplicate selectors",
+"A headless Service (clusterIP: None) \u2014 DNS returns one A record per ready pod IP instead of a single ClusterIP",
+"A NodePort Service exposing 3 ports"
+],
+"a": 2,
+"x": "A regular Service always resolves to exactly one A record (the ClusterIP). Multiple A records, one per pod, is the signature of a headless Service \u2014 load balancing happens at DNS/client level instead of kube-proxy.",
+"t": "dns"
+},
+{
+"q": "A NetworkPolicy egress-isolates a namespace, and afterward all Service name lookups start timing out from pods in it. What's missing?",
+"o": [
+"An explicit egress allow rule to kube-system on both UDP and TCP port 53 for CoreDNS",
+"The Service's targetPort is wrong",
+"The pod's dnsPolicy must be set to None",
+"CoreDNS itself must be restarted after every NetworkPolicy change"
+],
+"a": 0,
+"x": "Cluster DNS relies on egress to CoreDNS in kube-system on port 53. Egress isolation without an explicit DNS allow rule (UDP AND TCP 53) breaks nearly every lookup.",
+"t": "dns"
+},
+{
+"q": "Why does the interview-standard debugging flow start with nslookup kubernetes.default before checking your own app's Service?",
+"o": [
+"kubernetes.default is a special DNS record with no dependency on CoreDNS",
+"It restarts CoreDNS as a side effect",
+"kubernetes.default is the only Service guaranteed to always exist, so its failure isolates the problem to CoreDNS/DNS path rather than your app",
+"It bypasses ndots expansion entirely"
+],
+"a": 2,
+"x": "kubernetes.default always exists on any cluster. If it fails to resolve, the problem is CoreDNS itself or the path to it (crashlooping pods, a NetworkPolicy eating port 53) \u2014 not your application.",
+"t": "dns"
+},
+{
+"q": "Which statement about pod DNS records is accurate per the cluster DNS model?",
+"o": [
+"Every pod automatically gets a resolvable hostname-based DNS record",
+"Only the IP-based form (10-244-1-5.shop.pod.cluster.local) always works; hostname-based records require spec.hostname + spec.subdomain matching a headless Service",
+"Pods never get any DNS record, only Services do",
+"Pod DNS records are stored in /etc/hosts, not CoreDNS"
+],
+"a": 1,
+"x": "Plain pod names are NOT resolvable by default \u2014 a frequent false assumption. Only the IP-based form always works, and named records need explicit hostname/subdomain configuration tied to a headless Service.",
+"t": "dns"
+},
+{
+"q": "You create an Ingress resource in a fresh cluster with no controller installed. What happens?",
+"o": [
+"kube-apiserver rejects the object with a validation error",
+"Kubernetes automatically installs ingress-nginx",
+"Traffic is routed using default kube-proxy rules",
+"Nothing errors and nothing happens \u2014 the Ingress is inert YAML until a controller watches and claims it"
+],
+"a": 3,
+"x": "The Ingress object does nothing by itself. It requires an ingress controller to watch it and program a real proxy; with none installed, creation silently succeeds but has zero effect \u2014 the #1 'why doesn't my Ingress work' answer.",
+"t": "ingress"
+},
+{
+"q": "You run:\n\n$ curl http://<lb-ip>/\nHTTP/1.1 404 Not Found\n\n$ curl -H 'Host: shop.example.com' http://<lb-ip>/\nHTTP/1.1 200 OK\n\nThe Ingress only defines a rule for host: shop.example.com. Why does the first request 404?",
+"o": [
+"The backend Service has no ready endpoints",
+"The TLS secret is missing",
+"pathType is set to Exact",
+"Without the right Host header, the request matches no host rule and falls through to the default backend"
+],
+"a": 3,
+"x": "404 signals a routing/claiming problem, not a backend problem. Sending no Host header (or the wrong one) matches no host rule, so the controller serves its default 404 backend.",
+"t": "ingress"
+},
+{
+"q": "An Ingress rule matches correctly, but clients get a 502/503. What does this indicate versus a 404, and what's the 30-second triage?",
+"o": [
+"404 and 502 mean the same thing: check DNS",
+"A matched rule but a dead upstream \u2014 run kubectl describe ingress plus kubectl get endpointslices for the backend Service",
+"502/503 always means the TLS certificate expired",
+"Restart the ingress controller pod immediately"
+],
+"a": 1,
+"x": "404 = no rule matched (routing problem). 502/503 = a rule matched but the upstream Service/backend failed (bad Service name/port, no ready endpoints, or connection resets) \u2014 describe ingress + get endpointslices is the fast triage.",
+"t": "ingress"
+},
+{
+"q": "An Ingress rule uses path: /api with pathType: Prefix. Which incoming request path does NOT match?",
+"o": [
+"/api",
+"/api/v1",
+"/apiary",
+"/api/"
+],
+"a": 2,
+"x": "Prefix matching operates on whole path segments. /api matches /api and /api/v1 (and /api/) but NOT /apiary, since that isn't a segment boundary match.",
+"t": "ingress"
+},
+{
+"q": "A browser shows a certificate warning naming 'Kubernetes Ingress Controller Fake Certificate' when visiting an HTTPS Ingress host. What does this indicate?",
+"o": [
+"The Ingress's TLS secret's cert SANs don't cover the requested host, so the controller falls back to its self-signed default certificate",
+"The cluster has no TLS support at all",
+"The client's browser is misconfigured",
+"DNS resolved to the wrong load balancer"
+],
+"a": 0,
+"x": "When the referenced cert's SANs don't cover the requested host, the controller silently serves its self-signed 'Fake Certificate' \u2014 a dead giveaway of a cert/host mismatch, per the card's TLS facts.",
+"t": "ingress"
+},
+{
+"q": "Why can one LoadBalancer + one ingress controller front dozens of Services more cost-effectively than Service type: LoadBalancer per Service?",
+"o": [
+"Ingress compresses HTTP traffic to reduce bandwidth costs",
+"LoadBalancer Services are L4 and each gets its own cloud LB and IP; Ingress is L7 and shares a single entry point that reads Host/path to route to many backend Services",
+"Ingress controllers run without any load balancer at all",
+"kube-proxy automatically merges multiple LoadBalancer Services into one IP"
+],
+"a": 1,
+"x": "Service type LoadBalancer is L4 \u2014 every Service pays for its own cloud LB and IP, with no URL awareness. Ingress moves routing to L7 behind one shared LB, using Host/path rules to fan out to many Services.",
+"t": "ingress"
+},
+{
+"q": "What does the Ingress spec's TLS block require, and what happens if it's missing while a host rule still exists?",
+"o": [
+"Nothing \u2014 TLS is automatic for all Ingress hosts",
+"The Secret can live in any namespace as long as it's named correctly",
+"TLS termination always happens at the backend pod, never at the controller",
+"A tls block needs a hosts list and a secretName pointing at a kubernetes.io/tls Secret in the SAME namespace; without it, the controller terminates HTTP only for that host, not HTTPS"
+],
+"a": 3,
+"x": "TLS is declared per-Ingress via hosts + secretName referencing a kubernetes.io/tls Secret in the same namespace as the Ingress; without it there's no HTTPS termination configured for that host.",
+"t": "ingress"
+},
+{
+"q": "A team applies a NetworkPolicy with podSelector: {} and policyTypes: [Ingress], containing zero ingress rules. What's the effect?",
+"o": [
+"It default-denies all ingress to every pod in the namespace, since selection alone triggers isolation regardless of rule content",
+"Nothing \u2014 an empty rules list means no policy is enforced",
+"It allows all ingress since there are no explicit deny rules",
+"It only affects pods that are also selected by another policy"
+],
+"a": 0,
+"x": "Isolation is triggered by selection, not rule content. podSelector: {} selects every pod; policyTypes: [Ingress] with no rules isolates them all with nothing allowed in \u2014 the canonical default-deny pattern.",
+"t": "netpol"
+},
+{
+"q": "In a NetworkPolicy 'from' block, what's the difference between one list entry containing both namespaceSelector and podSelector, versus two separate dashed entries for each?",
+"o": [
+"No difference; YAML normalizes both to the same rule",
+"Two separate entries always causes a validation error",
+"One entry with both selectors is an AND (pods matching podSelector INSIDE matching namespaces); two separate entries is an OR (either match qualifies)",
+"namespaceSelector is ignored unless it's in its own entry"
+],
+"a": 2,
+"x": "This is the classic AND/OR trap: a single from: entry with both selectors means AND; two dashed list entries mean OR. A stray extra '-' silently turns a tight rule into a much looser one \u2014 YAML won't warn you.",
+"t": "netpol"
+},
+{
+"q": "You run:\n\n$ kubectl exec -it app -- nc -zv -w2 db 5432\nnc: db (10.96.14.2:5432): Operation timed out\n\n$ kubectl exec -it dbg -- nc -zv -w2 10.244.3.9 5432\nConnection to 10.244.3.9 5432 port [tcp/*] succeeded!\n\n(dbg is not selected by any NetworkPolicy; app is.) What does this timeout-vs-success pattern suggest?",
+"o": [
+"A NetworkPolicy is silently dropping the packets \u2014 timeouts point at policy or firewall drops, not a listening problem",
+"The database process has crashed",
+"The DB Service's targetPort is misconfigured",
+"DNS is returning a stale ClusterIP"
+],
+"a": 0,
+"x": "Policy-dropped packets are silently discarded, producing client timeouts, not refused connections. 'Refused' would mean reaching the host with nothing listening (ports/endpoints issue). Timeout + working connectivity from an unselected pod is the classic NetworkPolicy signature.",
+"t": "netpol"
+},
+{
+"q": "A team applies default-deny-egress to a namespace, then immediately applies default-deny-ingress, planning to add the DNS-allow rule last. What breaks, and why does ordering matter?",
+"o": [
+"Nothing breaks; order is irrelevant since policies are additive",
+"Ingress rules take priority over egress rules automatically",
+"The whole namespace loses name resolution immediately, because egress to CoreDNS on port 53 wasn't allowed before egress was locked down",
+"The API server rejects policies applied out of order"
+],
+"a": 2,
+"x": "The documented rollout order is: label namespaces, allow DNS egress everywhere, THEN default-deny ingress, THEN default-deny egress. Reversing that (deny egress before allowing DNS) takes down name resolution for the whole namespace in one apply.",
+"t": "netpol"
+},
+{
+"q": "A NetworkPolicy tries to restrict traffic 'to the database Service' using an ipBlock with the Service's ClusterIP CIDR. Why is this unreliable?",
+"o": [
+"ipBlock only supports IPv6 addresses",
+"Policies select pods, not Services \u2014 kube-proxy DNATs Service traffic to a pod IP BEFORE policy evaluation, so ipBlock on a ClusterIP CIDR doesn't reliably match",
+"ClusterIPs are randomly reassigned every few minutes",
+"ipBlock cannot be combined with podSelector in the same policy"
+],
+"a": 1,
+"x": "Policies evaluate against pod IPs, since kube-proxy has already DNAT'd Service traffic before policy enforcement. ipBlock is meant for real external CIDRs; matching pod traffic via a ClusterIP CIDR is explicitly unreliable.",
+"t": "netpol"
+},
+{
+"q": "Pod A successfully opens a TCP connection to Pod B under a restrictive NetworkPolicy setup. Do you also need a mirrored ingress rule on A to allow B's replies back?",
+"o": [
+"Yes, every egress rule needs a matching ingress rule on the initiator",
+"Only if the connection uses UDP instead of TCP",
+"Only if sessionAffinity: ClientIP is set on the Service",
+"No \u2014 connection tracking allows reply packets automatically once the initiating connection is permitted; policies govern connection initiation, not both directions"
+],
+"a": 3,
+"x": "Reply packets are handled by conntrack: if the initial connection was allowed, responses flow back automatically. You do not write a mirror rule for the reverse direction of an established flow.",
+"t": "netpol"
+},
+{
+"q": "A cluster runs classic Flannel as its CNI. The team applies several NetworkPolicies and traffic is still unrestricted. What's the likely explanation?",
+"o": [
+"NetworkPolicy YAML syntax is invalid",
+"NetworkPolicies require a paid Kubernetes distribution",
+"The policies need a namespace label to activate",
+"Flannel (classic) doesn't implement NetworkPolicy enforcement, so policies are accepted by the API but silently ignored"
+],
+"a": 3,
+"x": "NetworkPolicy enforcement is the CNI's job. Calico and Cilium enforce it; classic Flannel does not \u2014 an unenforced policy fails silently, a documented operational trap.",
+"t": "netpol"
+},
+{
+"q": "A policy needs to allow ingress from 'the monitoring namespace'. What must be true for namespaceSelector: matchLabels: {kubernetes.io/metadata.name: monitoring} to work?",
+"o": [
+"The monitoring namespace must be manually labeled 'name: monitoring' first",
+"Nothing extra \u2014 this label is automatically applied to every namespace by its name",
+"namespaceSelector only matches namespace names directly, labels are irrelevant",
+"This selector syntax is invalid and must use podSelector instead"
+],
+"a": 1,
+"x": "namespaceSelector matches namespace LABELS, not raw names. Every namespace automatically carries kubernetes.io/metadata.name: <name>, making matchLabels on that key the modern, label-hygiene-free way to select a namespace by name.",
+"t": "netpol"
+},
+{
+"q": "kubectl describe pod on a stuck pod shows:\n\nWarning  FailedCreatePodSandBox  kubelet  Failed to create pod\nsandbox: plugin type=\"calico\" failed: error adding container to\nnetwork: no configuration found in /etc/cni/net.d\n\nMeanwhile pods that were already running on that node keep serving traffic fine. What does this split symptom indicate?",
+"o": [
+"A total node network outage affecting all traffic",
+"The pod's application code has a bug",
+"A CNI failure on that node \u2014 new pods can't get sandboxes created, but already-running pods keep working because their veths/routes were wired before the failure",
+"The Service's selector no longer matches"
+],
+"a": 2,
+"x": "CNI plugins are invoked at sandbox creation. A broken CNI stops NEW pods at ContainerCreating while already-running pods keep working since their networking was already wired \u2014 the classic CNI-outage fingerprint, distinct from a total network outage.",
+"t": "cni"
+},
+{
+"q": "A node shows NotReady with 'container runtime network not ready: NetworkReady=false ... cni plugin not initialized'. What is the standard triage pair?",
+"o": [
+"Check /etc/cni/net.d/ for config presence and confirm the CNI DaemonSet pod is actually Running on that node",
+"Restart kubelet and hope it self-heals",
+"Reboot the node immediately",
+"Increase the node's pod CIDR size"
+],
+"a": 0,
+"x": "This exact message means kubelet found no CNI config in /etc/cni/net.d/. The documented triage is: config present in /etc/cni/net.d/, binaries present in /opt/cni/bin/, and is the CNI DaemonSet pod Running on that node.",
+"t": "cni"
+},
+{
+"q": "Requests with small payloads succeed between pods on different nodes, but large-payload requests hang or fail intermittently. What CNI-layer explanation fits?",
+"o": [
+"The Service's sessionAffinity is misconfigured",
+"A VXLAN overlay's encapsulation reduces the effective MTU; mismatched MTU causes large packets to fail while small ones succeed",
+"The pod CIDR has been exhausted",
+"CoreDNS is returning stale records"
+],
+"a": 1,
+"x": "VXLAN overlays wrap pod packets in UDP, reducing effective MTU. A mismatched MTU produces the infamous 'small requests work, large payloads hang' bug \u2014 a classic overlay networking gotcha.",
+"t": "cni"
+},
+{
+"q": "What core guarantee does the Kubernetes network model require that a CNI plugin must implement?",
+"o": [
+"Every pod shares the node's IP for simplicity",
+"Pods must NAT all cross-node traffic through kube-proxy",
+"Only pods in the same namespace can communicate",
+"Every pod gets its own IP, and all pods can reach all other pods across nodes WITHOUT NAT"
+],
+"a": 3,
+"x": "The contract is: every pod gets a real IP, all pods reach all pods across nodes without NAT, node agents can reach node pods, and a pod sees itself at the same IP others see. CNI plugins implement this; Kubernetes itself does not.",
+"t": "cni"
+},
+{
+"q": "A pod fails to schedule with the event 'failed to allocate for range: no IP addresses available', while the node otherwise looks healthy. What's the likely cause?",
+"o": [
+"The node's pod CIDR slice (e.g. a /24, ~250 IPs) is exhausted, capping how many pods that node can host",
+"The node's kubelet certificate has expired",
+"The Service CIDR has been exhausted",
+"The container runtime is out of disk space"
+],
+"a": 0,
+"x": "Each node typically owns a pod CIDR slice from the cluster CIDR; a /24 caps it at roughly 250 usable pod IPs. Exhausting that range produces exactly this 'no IP addresses available' event while the node itself looks otherwise healthy.",
+"t": "cni"
+},
+{
+"q": "Why can DaemonSets like the CNI plugin itself start scheduling on a node that is still NotReady?",
+"o": [
+"DaemonSets ignore node readiness entirely for all pods, always",
+"NotReady nodes automatically become Ready once any pod is scheduled",
+"DaemonSets with the right tolerations bypass the NotReady gate, which is the bootstrap trick that lets the CNI's own DaemonSet bring networking up",
+"kubelet grants an exception only to pods running as root"
+],
+"a": 2,
+"x": "kubelet's Ready condition gates most workloads from scheduling, but DaemonSets with appropriate tolerations can still be placed \u2014 this is exactly how the CNI's own DaemonSet gets onto a NotReady node to bring up networking in the first place.",
+"t": "cni"
+},
+{
+"q": "How does Cilium's eBPF datapath change kube-proxy-style Service handling compared to iptables mode, according to the card?",
+"o": [
+"It replaces iptables chains with in-kernel eBPF programs, so Service resolution and policy checks don't degrade as O(rules) with thousands of Services, and can fully replace kube-proxy",
+"It requires more iptables rules for large clusters",
+"It moves all networking into userspace for easier debugging",
+"It disables NetworkPolicy enforcement to gain speed"
+],
+"a": 0,
+"x": "eBPF programs attached in the kernel avoid the O(rules) degradation of sequential iptables chains, letting large clusters scale Service/policy handling \u2014 this is the documented reason large clusters move off iptables-mode kube-proxy.",
+"t": "cni"
+},
+{
+"q": "A PVC requesting ReadWriteOnce is already mounted read-write by a pod on node1. A second pod is scheduled onto node1 as well and also mounts it read-write. A third pod is scheduled onto node2 and tries to mount the same PVC. What happens?",
+"o": [
+"All three pods mount successfully since RWO allows unlimited pods",
+"Only one pod total may ever mount an RWO volume",
+"The first two pods (both on node1) succeed; the third pod on node2 fails to attach with a Multi-Attach error, because RWO counts NODES, not pods",
+"The PVC automatically converts to RWX to accommodate the third pod"
+],
+"a": 2,
+"x": "ReadWriteOnce means one NODE can mount read-write. Multiple pods on that same node can all write; a pod on a different node fails with 'Multi-Attach error for volume' \u2014 the single most-missed access-mode distinction.",
+"t": "storage"
+},
+{
+"q": "You run:\n\n$ kubectl describe pvc data\nStatus: Pending\nEvents:\n  Type    Reason                Message\n  ----    ------                -------\n  Normal  WaitForFirstConsumer  waiting for first consumer to be\n                                 created before binding\n\nWhat should you do?",
+"o": [
+"Treat it as an error and delete/recreate the PVC",
+"Nothing is wrong \u2014 this is WaitForFirstConsumer working as designed; create the pod that will use the claim",
+"Manually patch the PV's claimRef to force binding",
+"Switch the StorageClass's reclaimPolicy to Delete"
+],
+"a": 1,
+"x": "This message is normal, not an error, when volumeBindingMode is WaitForFirstConsumer \u2014 provisioning is deliberately delayed until a pod actually consumes the claim so the scheduler can pick the node/zone first.",
+"t": "storage"
+},
+{
+"q": "A team deletes a PVC bound to a PV with reclaimPolicy: Retain, expecting to recreate the PVC and reattach seamlessly. Instead, the new PVC stays Pending and the old PV shows status Released. Why?",
+"o": [
+"Retain automatically wipes the disk, so there's nothing left to bind",
+"PVs can never be reused once a PVC is deleted, regardless of reclaimPolicy",
+"The new PVC must use a different StorageClass to bind to a Released PV",
+"The PV's spec.claimRef still points at the deleted claim's UID; it must be manually cleared (patched/edited) before the PV becomes Available again"
+],
+"a": 3,
+"x": "Retain preserves both the PV object and its data, but the dangling claimRef prevents automatic re-binding. Recovery requires deliberately patching/editing the PV to clear claimRef, exposing the data to the next claimant.",
+"t": "storage"
+},
+{
+"q": "A cluster has no default StorageClass, and a PVC is created without setting storageClassName at all. What happens?",
+"o": [
+"The PVC binds to any available PV regardless of class",
+"Kubernetes creates a default StorageClass automatically",
+"The PVC is rejected at creation time by the API server",
+"The PVC stays Pending forever with an event like 'no persistent volumes available for this claim and no storage class is set'"
+],
+"a": 3,
+"x": "Omitting storageClassName normally gets mutated to the default class \u2014 but with no default class configured, and no matching static PV, the PVC sits Pending eternally. This is called out as the #1 storage question on fresh clusters.",
+"t": "storage"
+},
+{
+"q": "What is the practical difference between a PVC with storageClassName: \"\" (empty string) versus one that simply omits storageClassName?",
+"o": [
+"They are functionally identical in all cases",
+"Empty string explicitly opts OUT of dynamic provisioning and matches only classless static PVs; omitting the field lets it be mutated to the cluster's default class if one exists",
+"Omitting the field always fails validation",
+"Empty string forces the PVC to use the fast-ssd class by convention"
+],
+"a": 1,
+"x": "storageClassName: \"\" is a deliberate statement to skip dynamic provisioning entirely, matching only pre-existing classless static PVs \u2014 a different behavior from simply omitting the field, which defers to the default class.",
+"t": "storage"
+},
+{
+"q": "A pod using a dynamically provisioned PVC fails to schedule with the event 'volume node affinity conflict'. What's the likely root cause?",
+"o": [
+"The PVC's access mode is incompatible with the StorageClass",
+"The reclaimPolicy is set to Retain instead of Delete",
+"volumeBindingMode: Immediate provisioned the disk in one zone before the pod's node affinity forced scheduling into a different zone, since cloud block volumes are zonal",
+"CoreDNS cannot resolve the storage provisioner's Service"
+],
+"a": 2,
+"x": "Immediate binding mode can provision in a zone that later conflicts with where the pod's node affinity/scheduling constraints require it to land, since block volumes are zonal. WaitForFirstConsumer exists specifically to avoid this by delaying provisioning until after pod placement.",
+"t": "storage"
+},
+{
+"q": "A StorageClass has allowVolumeExpansion: true, and a team wants to shrink an over-provisioned 100Gi PVC down to 20Gi by editing spec.resources.requests.storage. What happens?",
+"o": [
+"There is no shrink path \u2014 downsizing requires creating a new smaller volume and copying data over; only expansion is supported",
+"The CSI driver shrinks the disk and reclaims the freed space automatically",
+"Shrinking works instantly but destroys existing data",
+"The PVC is automatically deleted and a smaller one is created in its place"
+],
+"a": 0,
+"x": "Expansion is one-directional: allowVolumeExpansion lets you grow a PVC upward via the CSI driver, but there is no shrink path at all. Downsizing means provisioning a new smaller volume and copying data.",
+"t": "storage"
+},
+{
+"q": "You run:\n\n$ kubectl get pvc data\nNAME   STATUS        VOLUME    CAPACITY   ACCESS MODES\ndata   Terminating   pvc-abc1  10Gi       RWO\n\nThis persists for several minutes after kubectl delete pvc data, and a pod is still mounting it. What's the most likely explanation?",
+"o": [
+"The PVC was never actually deleted due to an API server bug",
+"The kubernetes.io/pvc-protection finalizer holds it in Terminating until the last pod actively using it is gone",
+"Terminating PVCs always require manual finalizer removal, even in normal operation",
+"The StorageClass's reclaimPolicy is set to Retain, which blocks all deletion"
+],
+"a": 1,
+"x": "PVCs (and PVs) in active use are shielded by pvc-protection / pv-protection finalizers. A deleted-but-mounted PVC hangs in Terminating until the last consuming pod is gone \u2014 this is expected behavior, not a bug.",
+"t": "storage"
+}
+],
+"troubleshoot": [
+{
+"q": "A prod pod shows this:\n$ kubectl describe pod payment-api-7d9f8b6c5-x2kqj\nState:          Waiting\n  Reason:       CrashLoopBackOff\nLast State:     Terminated\n  Reason:       Error\n  Exit Code:    1\nRestart Count:  7\nEvents:\n  Warning  BackOff  2m (x21 over 9m)  kubelet  Back-off restarting failed container\nWhat is the single next command to find out why it's dying?",
+"o": [
+"kubectl logs payment-api-7d9f8b6c5-x2kqj --previous",
+"kubectl delete pod payment-api-7d9f8b6c5-x2kqj to force a fresh restart",
+"kubectl logs payment-api-7d9f8b6c5-x2kqj (without --previous)",
+"kubectl exec -it payment-api-7d9f8b6c5-x2kqj -- /bin/sh"
+],
+"a": 0,
+"x": "The container already crashed and restarted; --previous fetches logs from the terminated instance that actually died, while plain logs would show the fresh container that hasn't failed yet.",
+"h": "The current container hasn't failed yet \u2014 you need the last one's logs.",
+"t": "triage"
+},
+{
+"q": "Running `kubectl logs mypod` on a CrashLoopBackOff pod returns nothing. What should you conclude?",
+"o": [
+"The application never writes to stdout, so you must exec into the container instead",
+"Nothing conclusive yet \u2014 the current container is fresh; add --previous to see the crashed instance's logs",
+"The pod's logs were garbage collected after one hour",
+"There genuinely are no logs, so the problem must be a scheduling issue"
+],
+"a": 1,
+"x": "This is the classic trap: interviewers deliberately set it because forgetting --previous instantly reveals who hasn't debugged a real crash loop.",
+"t": "triage"
+},
+{
+"q": "Three pods are unhealthy but you don't yet know if it's one app, one node, or the whole cluster. What's the fastest way to narrow the investigation before diving into any single pod?",
+"o": [
+"Restart all affected pods and see which ones come back healthy",
+"Escalate directly to the platform team without further investigation",
+"Determine the blast radius first \u2014 is it one pod, one node, one namespace, or the whole cluster",
+"Immediately run kubectl logs --previous on every pod in the cluster"
+],
+"a": 2,
+"x": "One question halves the search space: one pod means an app problem, one node means a node problem, everything means control plane/CNI/DNS.",
+"t": "triage"
+},
+{
+"q": "During a live incident where a bad deploy is causing errors, what should you do FIRST?",
+"o": [
+"Delete the broken Deployment entirely to stop the errors",
+"Wait until you have the exact exit code before taking any action",
+"Immediately kubectl describe every pod to build a full root-cause picture before touching anything",
+"Mitigate immediately \u2014 e.g. kubectl rollout undo \u2014 then investigate the broken state calmly afterward"
+],
+"a": 3,
+"x": "Mitigate-before-root-cause: your first duty in an incident is stopping user impact, not explaining it.",
+"t": "triage"
+},
+{
+"q": "Why is `kubectl get events --sort-by=.metadata.creationTimestamp` preferred over plain `kubectl get events`?",
+"o": [
+"Without --sort-by, the event ordering is not guaranteed to be chronological",
+"--sort-by is required to see events across all namespaces",
+"Plain kubectl get events only shows events from the last 60 seconds",
+"Plain kubectl get events omits Warning-type events by default"
+],
+"a": 0,
+"x": "The flag turns the raw event stream into a readable, genuinely chronological timeline.",
+"t": "triage"
+},
+{
+"q": "You're investigating an incident that started two hours ago, but `kubectl get events` shows nothing relevant to the original failure. Why, and what should you check instead?",
+"o": [
+"Events are namespaced, so you simply forgot the -A flag",
+"Events are garbage-collected after about an hour; check restart counts, container Last State, and monitoring history instead",
+"The cluster's audit log has been disabled and needs to be re-enabled",
+"kubectl get events only ever shows the single most recent event per object"
+],
+"a": 1,
+"x": "Events are ephemeral (~1 hour retention by default), which is exactly why interviewers ask what to do when they're already gone.",
+"t": "triage"
+},
+{
+"q": "A production container image is distroless (no shell), so `kubectl exec -it mypod -- /bin/sh` fails with 'no such file or directory'. What's the documented way to get tooling inside the running pod's namespaces?",
+"o": [
+"kubectl exec -it mypod -- /bin/busybox sh",
+"Rebuild and redeploy the image with a shell added, then exec in",
+"kubectl debug -it mypod --image=busybox --target=<container>",
+"kubectl cp busybox:/bin/sh mypod:/bin/sh"
+],
+"a": 2,
+"x": "Ephemeral debug containers inject real tools into the running pod's namespaces; --target additionally shares the process namespace.",
+"t": "triage"
+},
+{
+"q": "A pod crashes within ~100ms of starting, too fast to `kubectl exec` into. What technique lets you inspect the exact same filesystem, env vars, and mounts at leisure?",
+"o": [
+"Increase the container's terminationGracePeriodSeconds to give more time to exec in",
+"kubectl rollout restart and hope to exec in during a slower startup",
+"kubectl debug node/<node> -it --image=busybox",
+"kubectl debug <pod> -it --copy-to=dbg --set-image='*=ubuntu' -- sleep 1d"
+],
+"a": 3,
+"x": "--copy-to creates a disposable clone with the entrypoint overridden so it stays up, sharing the original's filesystem, env vars, and mounts.",
+"t": "triage"
+},
+{
+"q": "In `kubectl describe pod` output, what's the practical difference between seeing a FailedScheduling event versus a BackOff event?",
+"o": [
+"FailedScheduling means the pod never reached a node; BackOff means it reached a node and is dying there \u2014 two different investigations",
+"FailedScheduling only happens for DaemonSets; BackOff only happens for Deployments",
+"BackOff always means a node problem, while FailedScheduling always means an application bug",
+"They mean the same thing, just from different Kubernetes versions"
+],
+"a": 0,
+"x": "One screen answers which investigation family you're in.",
+"t": "triage"
+},
+{
+"q": "What are the three commands that make up the core observation trio for Kubernetes triage?",
+"o": [
+"kubectl get all, kubectl apply --dry-run, kubectl rollout status",
+"kubectl describe pod, kubectl logs --previous, kubectl get events --sort-by=.metadata.creationTimestamp",
+"kubectl top pod, kubectl get pod -w, kubectl exec -it",
+"kubectl cluster-info, kubectl version, kubectl config view"
+],
+"a": 1,
+"x": "describe pod shows state/events, logs --previous shows the dying words, get events gives the cluster timeline.",
+"t": "triage"
+},
+{
+"q": "Given:\n$ kubectl logs payment-api-7d9f8b6c5-x2kqj --previous\nFATAL: could not connect to database \"payments\" at db-primary:5432: connection refused\nWhat does this tell you about where to look next?",
+"o": [
+"The container image is corrupted and must be rebuilt",
+"This is definitely an OOMKilled event, so raise the memory limit",
+"The app itself is fine; investigate why db-primary:5432 is unreachable (network, DNS, or the database being down)",
+"The Service selector doesn't match any pod labels"
+],
+"a": 2,
+"x": "The previous instance's logs name the actual fatal error \u2014 a downstream connection failure, not an app bug.",
+"t": "triage"
+},
+{
+"q": "A pod has multiple containers (or init containers) and `kubectl logs mypod` errors out asking you to specify a container. What's the fix?",
+"o": [
+"kubectl describe pod always substitutes for logs in multi-container pods",
+"Delete and recreate the pod with only one container",
+"kubectl logs mypod --all-containers is required and has no shorthand",
+"kubectl logs mypod -c <container-name>"
+],
+"a": 3,
+"x": "The -c flag targets logs at a specific container in a multi-container or init-container pod.",
+"t": "triage"
+},
+{
+"q": "What does `kubectl get pod <pod> -o yaml` give you that `kubectl describe pod` might leave ambiguous?",
+"o": [
+"The full ground truth stored by the API server \u2014 status.conditions and exact containerStatuses including exit codes and image IDs",
+"A live stream of the pod's stdout/stderr",
+"The scheduler's internal decision-making logs",
+"A diff against the previous revision of the pod"
+],
+"a": 0,
+"x": "-o yaml exposes exactly what the cluster stored, useful for spotting things like an unexpected pulled image digest.",
+"t": "triage"
+},
+{
+"q": "Why does interview-style Kubernetes troubleshooting reward saying the diagnostic loop out loud ('first I'd describe the pod because...') rather than just naming the eventual fix?",
+"o": [
+"kubectl commands cannot be run silently in a real interview",
+"It demonstrates a disciplined observe-hypothesize-test loop rather than guessing at fixes, which is what's actually being graded",
+"The fix is usually irrelevant and only command syntax matters",
+"Kubernetes certification exams require verbal explanations"
+],
+"a": 1,
+"x": "Interviewers are method-testing: observe, hypothesize one cause, test with one command, repeat.",
+"t": "triage"
+},
+{
+"q": "Given:\n$ kubectl get pods -n prod\nNAME                    READY STATUS   RESTARTS AGE\ncheckout-6f7d9c-b2xkq   0/1   Pending  0        12m\n$ kubectl describe pod checkout-6f7d9c-b2xkq | tail -3\n  Warning FailedScheduling 45s (x9 over 12m) default-scheduler\n  0/6 nodes are available: 4 Insufficient memory,\n  2 node(s) had untolerated taint {dedicated: gpu}.\nWhat is the diagnosis?",
+"o": [
+"The application is crashing on startup due to an out-of-memory condition",
+"The image failed to pull because of a registry authentication error",
+"The scheduler can't place the pod: 4 nodes lack sufficient memory and 2 have an untolerated taint \u2014 a scheduling problem, not an app problem",
+"The pod is stuck Terminating because of a finalizer"
+],
+"a": 2,
+"x": "FailedScheduling itemizes the rejection per node; this pod never reached a node at all.",
+"t": "podstates"
+},
+{
+"q": "A junior engineer sees a Pending pod and runs `kubectl logs` on it to investigate. Why is this the wrong move?",
+"o": [
+"kubectl logs always requires the -f flag for Pending pods",
+"kubectl logs only works on pods in the Running phase for security reasons",
+"Pending pods delete their logs automatically",
+"A Pending pod hasn't been bound to a node yet, so no container has started and there are no application logs to see"
+],
+"a": 3,
+"x": "Pending is purely a scheduling conversation; application logs simply don't exist yet.",
+"t": "podstates"
+},
+{
+"q": "What are the real Pod phases in Kubernetes (as opposed to the display strings kubectl shows, like CrashLoopBackOff)?",
+"o": [
+"Pending, Running, Succeeded, Failed, Unknown",
+"ImagePullBackOff, ContainerCreating, Running, Evicted, Completed",
+"Waiting, Running, Terminated, Ready, NotReady",
+"Pending, Scheduled, Running, CrashLoopBackOff, Terminated"
+],
+"a": 0,
+"x": "CrashLoopBackOff, ImagePullBackOff, and Terminating are derived display strings, not actual pod phases.",
+"t": "podstates"
+},
+{
+"q": "A pod is stuck Pending, and `kubectl get pvc` shows its claim status as Pending. What's the likely explanation?",
+"o": [
+"The Service selector doesn't match the pod's labels",
+"The pod is waiting on an unbound PersistentVolumeClaim, and it will sit in Pending indefinitely until the PVC binds",
+"The container image doesn't exist in the registry",
+"The node's kubelet certificate has expired"
+],
+"a": 1,
+"x": "An unbound PVC produces the event 'pod has unbound immediate PersistentVolumeClaims' and keeps the pod Pending forever.",
+"t": "podstates"
+},
+{
+"q": "A pod restarts repeatedly and `kubectl describe pod` shows:\nLast State:     Terminated\n  Reason:       OOMKilled\n  Exit Code:    137\nRestart Count:  4\nWhat is the correct interpretation?",
+"o": [
+"The scheduler evicted the pod due to insufficient CPU",
+"This is a generic application error unrelated to memory; check --previous logs for a stack trace",
+"The kernel's OOM killer sent SIGKILL because the container exceeded its memory limit \u2014 fix is right-sizing the limit or the leak, not restarting harder",
+"Exit code 137 always means a graceful SIGTERM shutdown, which is normal and needs no action"
+],
+"a": 2,
+"x": "137 = 128+9 = SIGKILL, and Reason: OOMKilled confirms the memory-limit enforcement, not a graceful shutdown.",
+"t": "podstates"
+},
+{
+"q": "What is the fundamental mistake in the reasoning 'the pod is in CrashLoopBackOff, so I'd restart it'?",
+"o": [
+"Restarting risks permanently corrupting the underlying PersistentVolume",
+"CrashLoopBackOff pods should always be scaled to zero replicas first",
+"Restarting a CrashLoopBackOff pod is impossible because kubectl delete is disabled on it",
+"CrashLoopBackOff is a symptom, not a cause \u2014 the kubelet is already restarting it; the real diagnosis is the exit code plus kubectl logs --previous"
+],
+"a": 3,
+"x": "This is the card's explicit trap: the state only says 'it keeps dying', restarting harder is exactly what's already happening.",
+"t": "podstates"
+},
+{
+"q": "How does the kubelet's CrashLoopBackOff restart timing work?",
+"o": [
+"Exponential backoff starting at 10s, doubling up to a cap of 5 minutes, with the counter resetting only after 10 minutes of clean running",
+"A fixed 30-second delay between every restart attempt, with no cap",
+"The delay is set by the pod's terminationGracePeriodSeconds field",
+"Immediate restart with no delay, up to a maximum of 5 attempts"
+],
+"a": 0,
+"x": "10s, 20s, 40s... capped at 5 minutes; a crashlooping pod is mostly parked in the penalty box, not continuously crashing.",
+"t": "podstates"
+},
+{
+"q": "Given:\n$ kubectl describe pod checkout-6f7d9c-tr4wp | grep -A2 Failed\n  Warning  Failed  3m  kubelet  Failed to pull image \"registry.corp/checkout:v2.4.1\":\n  rpc error: manifest for registry.corp/checkout:v2.4.1 not found\nWhat is the diagnosis, and what should you check first?",
+"o": [
+"The node is under DiskPressure and garbage-collected the image",
+"The image tag v2.4.1 was never pushed (or is misspelled) \u2014 verify the tag exists in the registry rather than assuming a network or auth problem",
+"imagePullSecrets is missing from the pod spec; add one immediately",
+"The registry is completely unreachable from the node; check node network connectivity first"
+],
+"a": 1,
+"x": "'manifest ... not found' points at a wrong/never-pushed tag \u2014 read the registry's actual error string before guessing.",
+"t": "podstates"
+},
+{
+"q": "ImagePullBackOff can stem from three families of cause. Which of the following is NOT one of them?",
+"o": [
+"Registry unreachable from the node (network, proxy, outage)",
+"Wrong image name or tag (never pushed)",
+"The container's liveness probe is misconfigured",
+"Missing, misspelled, or expired imagePullSecrets"
+],
+"a": 2,
+"x": "ImagePullBackOff is purely about pulling the image; probes are irrelevant to it.",
+"t": "podstates"
+},
+{
+"q": "A private image pull fails with 'manifest unknown', identical to what you'd see for a genuine tag typo. Why can this be misleading?",
+"o": [
+"This error code is specific to public registries and cannot occur with private ones",
+"This error only ever means the tag was mistyped, never an auth issue",
+"Private registries always return a distinct 'unauthorized' error, never 'not found'",
+"A private image with no pull secret produces the same 'not found'-style error as a typo, because registries hide private repos from unauthenticated requests"
+],
+"a": 3,
+"x": "Registries deliberately don't reveal that a private repo exists to an unauthenticated caller.",
+"t": "podstates"
+},
+{
+"q": "A pod is stuck in ContainerCreating for several minutes and `kubectl describe pod` shows 'FailedCreatePodSandBox ... failed to set up pod network'. What subsystem should you suspect?",
+"o": [
+"The CNI plugin \u2014 e.g. a crashed CNI daemonset or exhausted pod CIDR/IP space",
+"The container registry's authentication layer",
+"The application's own readiness probe",
+"The PersistentVolume's storage class"
+],
+"a": 0,
+"x": "Sandbox creation failures about pod networking point straight at the CNI plugin.",
+"t": "podstates"
+},
+{
+"q": "What does `MountVolume.SetUp failed ... secret \"x\" not found` in pod events point to?",
+"o": [
+"An expired kubelet TLS certificate",
+"The pod references a ConfigMap or Secret that doesn't exist in that namespace, blocking sandbox creation",
+"A NetworkPolicy blocking egress traffic",
+"The container exceeded its ephemeral storage limit"
+],
+"a": 1,
+"x": "This is a FailedMount event citing a missing referenced object by name.",
+"t": "podstates"
+},
+{
+"q": "You force-delete a stuck-Terminating pod on a node you've confirmed is dead using `kubectl delete pod --grace-period=0 --force`. Why do interviewers ask whether you'd do the same for a StatefulSet pod?\n\n$ kubectl get pods -n prod\nNAME        READY STATUS       RESTARTS AGE\norders-db-1 1/1   Terminating  0        3h",
+"o": [
+"StatefulSet pods can never be deleted, only scaled down",
+"Force-delete is disabled entirely for StatefulSets by RBAC defaults",
+"Force-deleting lets the controller create a duplicate identity while the old pod's processes might still be running \u2014 a split-brain risk for stateful workloads like databases",
+"Force-delete triggers an automatic full-cluster backup for StatefulSets, which is expensive"
+],
+"a": 2,
+"x": "StatefulSets deliberately refuse to replace pods on unreachable nodes for exactly this reason.",
+"t": "podstates"
+},
+{
+"q": "During a node's disk-pressure incident, you later see a long list of pods in Failed state with Reason: Evicted. What produced them?",
+"o": [
+"A NetworkPolicy denied traffic to these pods, causing them to be marked Failed",
+"The scheduler rejected these pods for insufficient memory before they ever ran",
+"The Deployment's progressDeadlineSeconds expired, marking old pods as Evicted",
+"The kubelet performed node-pressure eviction, killing pods locally to reclaim resources \u2014 prioritizing pods over their requests and BestEffort pods first"
+],
+"a": 3,
+"x": "Node-pressure eviction is the kubelet's local self-defense mechanism, distinct from scheduling rejection.",
+"t": "podstates"
+},
+{
+"q": "Which pods are safest from node-pressure eviction, and why?",
+"o": [
+"Guaranteed-QoS pods (requests == limits), because eviction ranks pods first by whether usage exceeds requests, then priority, then relative usage",
+"Pods running as DaemonSets, which are always immune regardless of QoS class",
+"Pods with the most restart events, since the kubelet deprioritizes disruptive terminations",
+"Pods with no resource requests set at all, since they have nothing to exceed"
+],
+"a": 0,
+"x": "BestEffort pods (zero requests) always 'exceed' their requests and die first; Guaranteed pods are most protected.",
+"t": "podstates"
+},
+{
+"q": "A pod shows `Init:CrashLoopBackOff` in `kubectl get pods`. What does this specifically mean, and what command do you run next?",
+"o": [
+"This state is cosmetic only and resolves itself once the app container starts",
+"An init container is crashing before the main app container ever starts; run kubectl logs <pod> -c <init-container-name>",
+"The main application container is crashing; run kubectl logs <pod> --previous",
+"The pod failed scheduling because of an init-container-specific taint; check kubectl describe node"
+],
+"a": 1,
+"x": "Init containers run sequentially to completion before app containers start; a crashing one blocks everything.",
+"t": "podstates"
+},
+{
+"q": "Given:\n$ kubectl get nodes\nNAME     STATUS     ROLES   AGE   VERSION\nnode-a2  NotReady   <none> 212d  v1.29.4\n$ kubectl describe node node-a2\nConditions:\n  Type  Status  Reason  Message\n  Ready Unknown NodeStatusUnknown  Kubelet stopped posting node status.\nTaints: node.kubernetes.io/unreachable:NoExecute\nWhat should you do first?",
+"o": [
+"Delete the node object right away to force pod rescheduling",
+"Restart every pod that was running on node-a2 manually",
+"Diagnose why the kubelet stopped reporting (journalctl -u kubelet, runtime, CNI, certs, disk) and cordon to contain \u2014 don't drain a node whose kubelet may be dead",
+"Immediately run kubectl drain node-a2 --ignore-daemonsets to evict everything gracefully"
+],
+"a": 2,
+"x": "You can't gracefully drain a node whose kubelet is dead \u2014 evictions can't be confirmed; diagnose first, then contain.",
+"t": "nodetrouble"
+},
+{
+"q": "What is the practical difference between kubectl cordon and kubectl drain?",
+"o": [
+"cordon evicts pods immediately; drain only prevents new pods from scheduling",
+"cordon works on nodes; drain only works on individual pods",
+"They are aliases for the same operation in modern kubectl versions",
+"cordon only marks the node unschedulable, leaving existing pods running; drain cordons AND evicts pods gracefully, honoring PodDisruptionBudgets"
+],
+"a": 3,
+"x": "cordon = 'stop the bleeding, I suspect this node'; drain = the full pre-maintenance eviction.",
+"t": "nodetrouble"
+},
+{
+"q": "Given:\n$ kubectl drain node-a3 --ignore-daemonsets\nevicting pod prod/orders-db-1\nerror when evicting pods/\"orders-db-1\": Cannot evict pod as it would violate the pod's disruption budget.\nWhat is happening and what are legitimate fixes?",
+"o": [
+"A PodDisruptionBudget is blocking the voluntary eviction; scale the app up so a disruption becomes affordable, fix an overly strict PDB, or as a break-glass option, delete the pod directly (which bypasses PDBs)",
+"The node is already fully drained and this is a stale cache error; retry the same command",
+"This means the node is NotReady and drain cannot function until it recovers",
+"PodDisruptionBudgets never block drain, so this must be a kube-proxy bug"
+],
+"a": 0,
+"x": "This is a feature, not a bug \u2014 the PDB is protecting availability; check kubectl get pdb -A for ALLOWED DISRUPTIONS: 0.",
+"t": "nodetrouble"
+},
+{
+"q": "A node shows Ready=Unknown with 'Kubelet stopped posting node status', versus another node showing MemoryPressure=True. How should you interpret the difference?",
+"o": [
+"True pressure conditions are cosmetic and don't require any action",
+"Unknown means the node controller lost contact entirely \u2014 go look at the machine; a specific True pressure condition means go look at that resource on an otherwise-reachable node",
+"Unknown always means the node has been manually cordoned",
+"Both indicate exactly the same underlying problem: insufficient memory"
+],
+"a": 1,
+"x": "Unknown = node controller lost contact; a named True condition = the kubelet is actively reporting a specific problem.",
+"t": "nodetrouble"
+},
+{
+"q": "What is the documented dependency-order checklist for diagnosing a NotReady node?",
+"o": [
+"Check kubectl top node first, since resource usage is always the root cause",
+"Disk space \u2192 CNI \u2192 node reachable \u2192 kubelet running \u2192 container runtime \u2192 certs",
+"Node reachable \u2192 kubelet running (systemctl/journalctl) \u2192 container runtime alive \u2192 CNI initialized \u2192 kubelet client cert validity \u2192 disk space",
+"Only check journalctl -u kubelet; all other checks are redundant"
+],
+"a": 2,
+"x": "Diagnosis runs bottom-up through the kubelet's dependency chain.",
+"t": "nodetrouble"
+},
+{
+"q": "Given:\n$ kubectl get pod orders-db-1 -n prod\nNAME        READY STATUS      RESTARTS AGE\norders-db-1 1/1   Terminating 0        6m\n$ kubectl get node node-b7\nNAME     STATUS   AGE\nnode-b7  NotReady 212d\nAfter node-b7 died uncontrolled, how long by default before this pod is evicted, and why might a StatefulSet pod stay stuck longer than a Deployment pod would?",
+"o": [
+"Eviction happens instantly (0s) for both Deployments and StatefulSets",
+"The default is 30 seconds, matching terminationGracePeriodSeconds, and both controllers behave identically",
+"StatefulSet pods are evicted faster than Deployment pods because they hold PersistentVolumes",
+"The default tolerationSeconds is 300s (~5 min); Deployments create replacements anyway, but StatefulSets refuse to until the node is deleted or the pod force-deleted, to avoid duplicate identity / split-brain on shared volumes"
+],
+"a": 3,
+"x": "The unreachable NoExecute taint carries a default 300s tolerationSeconds; StatefulSets deliberately wait longer to avoid split-brain.",
+"t": "nodetrouble"
+},
+{
+"q": "Why does `kubectl drain` require the `--ignore-daemonsets` flag to proceed?",
+"o": [
+"DaemonSet pods would just be recreated on the same node immediately, so draining refuses to proceed without explicitly acknowledging that",
+"Without the flag, drain deletes the DaemonSet controller itself",
+"DaemonSets are immune to eviction by design and the flag is purely cosmetic",
+"The flag disables PodDisruptionBudget checks for faster draining"
+],
+"a": 0,
+"x": "Evicting a DaemonSet pod is pointless since the controller immediately recreates it on the same node.",
+"t": "nodetrouble"
+},
+{
+"q": "You need to inspect journalctl and systemd status on a node in a managed cluster (EKS/GKE/AKS) where SSH access is disabled. What's the documented approach?",
+"o": [
+"Use kubectl exec on a random pod already running on that node",
+"kubectl debug node/<node> -it --image=busybox, which mounts the host filesystem at /host so you can chroot in and read logs without SSH",
+"Request emergency SSH access from the cloud provider's support team",
+"There is no way to inspect a managed node's system logs without SSH"
+],
+"a": 1,
+"x": "This is often the ONLY way to read kubelet logs when node SSH is disabled.",
+"t": "nodetrouble"
+},
+{
+"q": "A node has DiskPressure=True. What is the kubelet's first response, before it starts evicting pods?",
+"o": [
+"Rebooting the node's container runtime",
+"Immediately evicting all BestEffort pods regardless of other options",
+"Garbage collection \u2014 deleting dead containers and unused images \u2014 and only evicting pods if that fails to relieve pressure",
+"Cordoning every other healthy node in the cluster as a precaution"
+],
+"a": 2,
+"x": "GC is tried first against both nodefs and imagefs before any pod eviction happens.",
+"t": "nodetrouble"
+},
+{
+"q": "During a large-scale outage where a big fraction of nodes in a zone go NotReady simultaneously, what does the node controller do differently compared to a single node dying?",
+"o": [
+"It disables all PodDisruptionBudgets cluster-wide until the incident resolves",
+"It automatically triggers a full cluster autoscale-up regardless of resource needs",
+"It immediately force-deletes every pod on every NotReady node to restore capacity as fast as possible",
+"It rate-limits and backs off evicting pods, assuming a network partition or control-plane problem rather than mass node death, to avoid a self-inflicted total outage"
+],
+"a": 3,
+"x": "Kubernetes deliberately hesitates during large-scale failure rather than compounding it with mass eviction.",
+"t": "nodetrouble"
+},
+{
+"q": "Given:\n$ kubectl get pods -l app=web -o wide\nNAME                   READY STATUS  RESTARTS AGE IP\nweb-59d4c7d6b8-fk2xp   0/1   Running 0        8m  10.244.1.17\n$ kubectl get endpointslices -l kubernetes.io/service-name=web\nNAME      ADDRESSTYPE PORTS ENDPOINTS AGE\nweb-b8dxl IPv4        8080  <unset>   42d\n$ kubectl describe pod web-59d4c7d6b8-fk2xp | grep -A1 Readiness\n  Warning Unhealthy 90s (x24 over 8m) kubelet\n  Readiness probe failed: Get \"http://10.244.1.17:8080/healthz\": dial tcp: connect: connection refused\nWhat's the diagnosis for 'service gets no traffic'?",
+"o": [
+"The readiness probe is failing (READY 0/1), so the pod is removed from Service endpoints even though it's Running \u2014 this is not a networking or ingress issue",
+"The Service selector doesn't match the pod's labels at all",
+"The node's kube-proxy has stale iptables rules",
+"The ingress controller is down and needs a restart"
+],
+"a": 0,
+"x": "0/1 READY plus empty endpoints is the signature of a failing readiness probe, not a selector or ingress problem.",
+"t": "apps"
+},
+{
+"q": "What's the key behavioral difference between a failing readiness probe and a failing liveness probe?",
+"o": [
+"Liveness failure only affects DaemonSets, never Deployments",
+"Readiness failure leaves the container running but removes it from Service endpoints (READY 0/1, RESTARTS flat); liveness failure kills and restarts the container (RESTARTS climbing)",
+"They are functionally identical; both restart the container",
+"Readiness failure always triggers a node cordon"
+],
+"a": 1,
+"x": "Opposite signatures and opposite blast radii \u2014 readiness quietly deregisters, liveness kills and restarts.",
+"t": "apps"
+},
+{
+"q": "Why should a liveness probe never be pointed at an external dependency (e.g., a database health check)?",
+"o": [
+"Liveness probes are technically incapable of making outbound network calls",
+"It would cause the Service's endpoints to be permanently deleted",
+"A dependency outage would cause kubelet to kill and restart otherwise-healthy pods across the whole fleet simultaneously \u2014 liveness should only check 'am I deadlocked'",
+"Dependency checks in liveness probes are automatically ignored by kubelet"
+],
+"a": 2,
+"x": "Readiness checks 'can I serve'; liveness checks only 'am I deadlocked' \u2014 mixing them causes mass unnecessary restarts.",
+"t": "apps"
+},
+{
+"q": "A Service has targetPort 80 but the app actually listens on 8080. What symptom does this produce?",
+"o": [
+"The Service will report a validation error at apply time and refuse to create",
+"kube-proxy silently corrects the port automatically",
+"The Service will simply not create any endpoints at all",
+"Endpoints exist (pod is Ready) but connections are refused \u2014 a port mismatch, distinct from a selector problem"
+],
+"a": 3,
+"x": "targetPort must match the container's actual listening port; a mismatch produces endpoints that refuse every connection.",
+"t": "apps"
+},
+{
+"q": "What is the recommended way to distinguish whether a 502 is an ingress-config problem versus a downstream pod problem?",
+"o": [
+"Curl the Service directly from a debug pod: if that works, it's ingress-side config; if it fails, go back down to endpoints",
+"502 errors can only be diagnosed from cloud provider load balancer logs",
+"Check the Deployment's replica count only",
+"Always assume 502 means the ingress controller needs a restart"
+],
+"a": 0,
+"x": "This is the hop-by-hop elimination method the apps card recommends.",
+"t": "apps"
+},
+{
+"q": "An app inside the cluster fails with 'could not resolve db-primary', but db-primary is a Service in a different namespace than the caller. What's the most likely root cause?",
+"o": [
+"CoreDNS is definitely down and needs to be restarted",
+"Short Service names are namespace-scoped; cross-namespace lookups need the qualified form db-primary.<ns> or the full db-primary.<ns>.svc.cluster.local",
+"DNS caching on the client pod needs to be cleared with kubectl rollout restart",
+"The NetworkPolicy in the target namespace is blocking all ingress by default"
+],
+"a": 1,
+"x": "Cross-namespace short-name lookups are called out as a top-3 real-world DNS 'outage' cause.",
+"t": "apps"
+},
+{
+"q": "You update a ConfigMap consumed by a Deployment as environment variables, but only some pods behave with the new values while others still act on the old ones:\n$ kubectl get pods -l app=api -o wide\nNAME              READY STATUS  RESTARTS AGE\napi-6b7f9-abc12   1/1   Running 0        45d\napi-6b7f9-def34   1/1   Running 2        6m\nWhy is this happening?",
+"o": [
+"Environment variables from ConfigMaps are cached at the API server for exactly one hour",
+"This only happens if the ConfigMap is mounted as a volume, never as env vars",
+"ConfigMaps consumed as env vars are only read at container start \u2014 updating the ConfigMap does not update already-running pods' environments",
+"This indicates a corrupted etcd write; the update needs to be reapplied"
+],
+"a": 2,
+"x": "Only pods that have restarted since the ConfigMap change (like the 6m-old one) pick up new values.",
+"t": "apps"
+},
+{
+"q": "`kubectl rollout status deployment/web` shows the rollout stuck at '1 out of 3 new replicas updated' indefinitely. What happens after progressDeadlineSeconds (default 600s) elapses, and what should you do?",
+"o": [
+"Kubernetes automatically rolls back to the previous ReplicaSet without any action needed",
+"The Deployment is deleted automatically to prevent further resource usage",
+"All old pods are force-terminated immediately once the deadline passes",
+"The Deployment's Progressing condition flips to False with Reason: ProgressDeadlineExceeded \u2014 Kubernetes does NOT auto-rollback, so you must run kubectl rollout undo yourself"
+],
+"a": 3,
+"x": "The deadline only sets a condition for your CI to gate on; rollback is manual.",
+"t": "apps"
+},
+{
+"q": "Why can users often remain unaffected while a Deployment rollout is stuck with new pods in CrashLoopBackOff?",
+"o": [
+"The old ReplicaSet's pods are still running and serving traffic during a stuck rollout, since Kubernetes doesn't tear down working replicas until new ones are Ready",
+"Users are only affected once the Deployment itself is deleted",
+"A stuck rollout always pauses at 0% traffic shift by default",
+"Kubernetes automatically load-balances only to healthy pods across all namespaces"
+],
+"a": 0,
+"x": "Rollout mechanics keep old pods serving during a stuck rollout \u2014 real operational judgment is knowing this.",
+"t": "apps"
+},
+{
+"q": "You suspect NetworkPolicy is the cause of intermittent connection timeouts, even though DNS resolves and endpoints exist. What specific misconfiguration is a classic culprit?",
+"o": [
+"NetworkPolicies can only block ingress, never egress, so this can't be a NetworkPolicy issue",
+"A default-deny NetworkPolicy that allows app traffic but forgets to allow UDP port 53 egress, breaking DNS resolution intermittently",
+"NetworkPolicy changes require a full cluster restart to take effect",
+"NetworkPolicy always blocks 100% of traffic when misconfigured, never intermittently"
+],
+"a": 1,
+"x": "Forgetting DNS egress (UDP 53) in an otherwise-correct policy is a maddeningly intermittent classic.",
+"t": "apps"
+}
+],
+"openshift": [
+{
+"q": "Your cluster dashboard shows `oc get co` with machine-config AVAILABLE=True PROGRESSING=False DEGRADED=True, and `oc describe co machine-config` reports Reason: RequiredPoolsFailed, 'pool worker is not ready, 1 node(s) degraded'. What is this telling you?",
+"o": [
+"A worker node is failing to apply its rendered MachineConfig, so the Machine Config Operator can't finish rolling out the pool",
+"The API server is unreachable",
+"etcd quorum has been lost",
+"The OAuth identity provider is misconfigured"
+],
+"a": 0,
+"x": "'oc get co' is the top-level health check; Degraded=True with RequiredPoolsFailed points straight at the Machine Config Operator failing to converge a MachineConfigPool because a node in it is degraded.",
+"t": "openshift"
+},
+{
+"q": "You edit a config file directly on a node via 'oc debug node/... ' + chroot, and shortly after the change silently disappears. Why?",
+"o": [
+"The node ran out of disk and rebooted",
+"The Machine Config Operator detects drift from the declarative MachineConfig and reverts manual edits; you should change the MachineConfig/operator CR instead",
+"RHCOS's SELinux policy blocked the write only temporarily",
+"The change requires 'oc apply' to persist, not a raw file edit"
+],
+"a": 1,
+"x": "Node config is declarative via MachineConfig objects owned by the MCO. Manual edits are drift and get reconciled away; the supported change is editing the MachineConfig itself.",
+"t": "openshift"
+},
+{
+"q": "When a self-service user runs `oc new-project team-b`, the request goes through the projectrequest API and instantiates a project template. What does this primarily stamp onto the resulting namespace that later drives SCC behavior?",
+"o": [
+"A NetworkPolicy that blocks all egress by default",
+"A ResourceQuota capping the project to one pod",
+"Annotations like openshift.io/sa.scc.uid-range that drive arbitrary-UID assignment for pods in that project",
+"An RBAC ClusterRoleBinding granting admin to all users"
+],
+"a": 2,
+"x": "The project template stamps annotations such as openshift.io/sa.scc.uid-range, which is exactly what the SCC admission plugin reads to assign an arbitrary UID.",
+"t": "openshift"
+},
+{
+"q": "A Project object in OpenShift is best described as:",
+"o": [
+"A separate resource unrelated to Kubernetes namespaces, used only for billing",
+"A synonym for a MachineConfigPool",
+"A CRD that fully replaces RBAC RoleBindings",
+"A Kubernetes namespace with OpenShift metadata layered on, created via a template (e.g. UID range annotations, quotas)"
+],
+"a": 3,
+"x": "A Project is literally a namespace plus OpenShift metadata stamped by the project template \u2014 same underlying object, extra annotations and request flow.",
+"t": "openshift"
+},
+{
+"q": "You push a MachineConfig adding a kernel argument to the worker MachineConfigPool. Minutes later every worker node starts cordoning, draining, and rebooting one at a time, even though you only meant to change a config value. Why?",
+"o": [
+"The Machine Config Operator applies MachineConfig changes to a pool by cordoning, draining, and rebooting each node in turn \u2014 a rolling reboot is expected behavior, not a bug",
+"MachineConfigPools only trigger reboots if Progressing=True is set manually first",
+"This only happens if the MachineConfig targets the master pool",
+"A kernel argument change always requires a full cluster reinstall"
+],
+"a": 0,
+"x": "Applying a MachineConfig to a pool causes the MCO to roll every node in that pool through cordon/drain/reboot, one at a time \u2014 a well-known surprise for people expecting a simple file push.",
+"t": "openshift"
+},
+{
+"q": "Which single command gives the fastest top-level health check of an OpenShift cluster, showing Available/Progressing/Degraded for every platform component?",
+"o": [
+"oc get pods -A",
+"oc get co (clusteroperators)",
+"oc adm top nodes",
+"oc get events -A"
+],
+"a": 1,
+"x": "'oc get co' lists ClusterOperators with their Available/Progressing/Degraded conditions \u2014 the OCP equivalent of a top-level dashboard.",
+"t": "openshift"
+},
+{
+"q": "An upgrade appears stuck: `oc get co` shows the ingress operator sitting at Progressing=True far longer than expected. What's the correct next diagnostic step?",
+"o": [
+"Delete the ingress operator pod to force a restart",
+"Edit the IngressController Operator's Deployment directly to fix it",
+"Run `oc describe co ingress` and check the pods in its operator/operand namespace for the actual failure reason",
+"Roll back the ClusterVersion to force a re-sync"
+],
+"a": 2,
+"x": "'oc describe co <name>' plus the operator's pods in its openshift-* namespace is the documented way to find out why a stuck operator isn't converging.",
+"t": "openshift"
+},
+{
+"q": "RHCOS nodes in OpenShift are managed how?",
+"o": [
+"Via a standard cloud-init script run once at boot",
+"Via SSH and manual package management like any RHEL server",
+"Via Helm charts applied to each node",
+"Immutably, via Ignition and MachineConfigs \u2014 you generally cannot 'yum install' packages directly on a running node"
+],
+"a": 3,
+"x": "RHCOS is treated as immutable, operator-managed configuration via Ignition + MachineConfigs, not a server you patch by hand.",
+"t": "openshift"
+},
+{
+"q": "Your security team wants only a CI pipeline (not any authenticated user) to be able to create new projects on a hardened OpenShift cluster. What's the supported fix?",
+"o": [
+"Remove the self-provisioner ClusterRole binding from system:authenticated:oauth and customize the project request template",
+"Delete the projectrequest API endpoint entirely",
+"Set a ResourceQuota of 0 projects per user",
+"Disable the OAuth server"
+],
+"a": 0,
+"x": "The documented governance pattern is removing self-provisioner from system:authenticated:oauth so only a pipeline/admin creates projects from a vetted template.",
+"t": "openshift"
+},
+{
+"q": "An image that runs perfectly on Docker/kind CrashLoops on OpenShift with permission-denied (EACCES) errors writing to /var/lib/app, a directory the image chowned to UID 1000 at build time. What's the root cause?",
+"o": [
+"The image's base OS is incompatible with RHCOS",
+"restricted-v2 assigns the pod an arbitrary UID from the project's uid-range annotation, and that UID doesn't own directories chowned to UID 1000 in the image",
+"The PVC was mounted read-only by default",
+"OpenShift blocks all writes under /var for security"
+],
+"a": 1,
+"x": "restricted-v2 runs pods as a random UID from the namespace's uid-range annotation; directories baked to a fixed UID (like 1000) are unwritable to that arbitrary UID.",
+"t": "scc"
+},
+{
+"q": "What's the recommended Dockerfile fix so an image works correctly under any arbitrary UID OpenShift assigns?",
+"o": [
+"Set USER 0 in the Dockerfile so the container always runs as root",
+"chgrp -R 0 and chmod -R g=u on the app directories, so group 0 (which every assigned UID belongs to) can read/write them",
+"Add the image's UID to the restricted-v2 SCC's users list",
+"Mount an emptyDir over every directory the app writes to"
+],
+"a": 1,
+"x": "OpenShift always adds the arbitrary UID to group 0; chgrp -R 0 + chmod -R g=u makes app directories writable regardless of which UID is assigned.",
+"t": "scc"
+},
+{
+"q": "`oc describe rs` shows: 'unable to validate against any security context constraint... runAsUser: Invalid value: 0'. What does this admission error mean?",
+"o": [
+"The cluster is out of available UIDs in the project's range",
+"The service account referenced by the pod doesn't exist",
+"The node's kubelet certificate expired",
+"The pod (or its image) requests UID 0 (root), which restricted-v2 forbids \u2014 the image needs an arbitrary-UID-compatible fix, not a root grant"
+],
+"a": 3,
+"x": "restricted-v2 rejects runAsUser=0. The senior fix is correcting the image's ownership assumptions, not granting a permissive SCC.",
+"t": "scc"
+},
+{
+"q": "Which SCC is intended only for infrastructure daemonsets like CNI plugins, storage drivers, and node exporters that genuinely need to manage the host?",
+"o": [
+"privileged",
+"anyuid",
+"nonroot-v2",
+"restricted-v2"
+],
+"a": 0,
+"x": "privileged is the 'nuclear' SCC \u2014 privileged mode, host namespaces/paths, all capabilities, any UID \u2014 reserved for genuine infrastructure daemonsets.",
+"t": "scc"
+},
+{
+"q": "A security audit flags that the 'default' service account in a project was granted the anyuid SCC. Why is this a serious finding?",
+"o": [
+"anyuid disables network policies for the namespace",
+"anyuid has priority 10, which outranks restricted-v2, so every pod using that service account in the project silently becomes eligible for root-capable admission",
+"anyuid grants cluster-admin RBAC automatically",
+"anyuid is only a naming label with no functional effect"
+],
+"a": 1,
+"x": "anyuid's priority 10 outranks restricted-v2, so granting it broadly (e.g. to a project's default SA) silently captures every pod in that project.",
+"t": "scc"
+},
+{
+"q": "When multiple SCCs could admit the same pod, in what order does OpenShift's admission plugin pick one?",
+"o": [
+"Alphabetically by name only",
+"Whichever SCC was created most recently",
+"Highest priority first, then most restrictive, then alphabetically by name",
+"Random selection among eligible SCCs for load balancing"
+],
+"a": 2,
+"x": "SCC selection sorts eligible candidates by priority (highest wins), then most restrictive, then name \u2014 the exact tie-breaking order documented for SCC admission.",
+"t": "scc"
+},
+{
+"q": "You need to run a third-party vendor image that hardcodes `USER 1001` with matching file ownership baked in, and you cannot rebuild it. What's the narrowest SCC to grant its service account?",
+"o": [
+"anyuid",
+"privileged",
+"restricted-v2 \u2014 no grant is needed",
+"nonroot-v2, since it allows any explicit non-zero UID without the namespace uid-range restriction"
+],
+"a": 3,
+"x": "nonroot-v2 is the documented middle ground for vendor images with a hardcoded non-zero UID \u2014 narrower than anyuid, and restricted-v2 would still force a mismatched arbitrary UID.",
+"t": "scc"
+},
+{
+"q": "A pod is admitted by restricted-v2 but events also show a Pod Security warning: 'would violate PodSecurity restricted:latest'. What does this indicate?",
+"o": [
+"Both SCCs and Kubernetes Pod Security Admission run on OpenShift; PSA labels are synced from available SCCs and can emit warnings even when the SCC is what actually enforces/admits the pod",
+"The pod was actually rejected and never scheduled",
+"PSA has fully replaced SCCs on this cluster",
+"The warning means the SCC configuration is corrupted and must be recreated"
+],
+"a": 0,
+"x": "SCCs and PSA coexist on OpenShift; PSA warn/audit labels are synced from the SCCs available to a namespace's service accounts, so a warning can appear even though the SCC is the actual enforcement mechanism.",
+"t": "scc"
+},
+{
+"q": "A pod using a PVC under restricted-v2 still fails to write to the mounted volume even after fixing directory group ownership inside the image. What's the likely missing piece?",
+"o": [
+"The PVC's storage class doesn't support ReadWriteMany",
+"pod.spec.securityContext.fsGroup isn't set (or falls outside the namespace's openshift.io/sa.scc.supplemental-groups range), so the volume was never chowned to a group the arbitrary UID belongs to",
+"The SCC needs to be changed to privileged",
+"fsGroup only applies to hostPath volumes, not PVCs"
+],
+"a": 1,
+"x": "For PVCs, fsGroup drives the kubelet to chown/chmod the mounted volume; under restricted-v2 it must also fall within the namespace's supplemental-groups range.",
+"t": "scc"
+},
+{
+"q": "You create a Route for www.example.com but browsers show a certificate warning for the cluster's default *.apps wildcard domain instead of your company's cert. What's the most likely cause?",
+"o": [
+"The Route's Service has no ready endpoints",
+"You used passthrough termination, which always ignores custom domains",
+"You created the Route without specifying edge termination cert/key (or DNS points at the wrong router shard), so the router served its default wildcard cert",
+"OpenShift caches certificates for 24 hours before applying them"
+],
+"a": 2,
+"x": "Seeing the *.apps wildcard cert for a custom domain maps to an edge route created without cert/key (or DNS pointing at the wrong shard) \u2014 exactly the documented cert-failure-to-mode mapping.",
+"t": "routes"
+},
+{
+"q": "A Route returns 'Application is not available' \u2014 a page served by the router itself \u2014 even though the app's Deployment looks fine. Where should you look first?",
+"o": [
+"The BuildConfig logs for the last build",
+"The ClusterVersion Operator's upgrade status",
+"The project's ResourceQuota for CPU",
+"The Service's selector, targetPort vs containerPort, and pod readiness \u2014 the router has the route admitted but no ready endpoints to send traffic to"
+],
+"a": 3,
+"x": "'Application is not available' is served BY the router when it has the route but no ready endpoints; check Service selector, ports, and readiness first, not the app.",
+"t": "routes"
+},
+{
+"q": "Your app needs mutual TLS (mTLS) directly between the client and the pod, with the pod itself terminating TLS. Which Route TLS mode fits?",
+"o": [
+"Passthrough",
+"Edge",
+"Re-encrypt",
+"None \u2014 Routes can't carry TLS all the way to the pod"
+],
+"a": 0,
+"x": "Passthrough never decrypts at the router; TLS (including mTLS) flows through via SNI, which is required when the app itself must terminate TLS.",
+"t": "routes"
+},
+{
+"q": "Under re-encrypt termination, how does the router avoid needing an explicit destinationCACertificate on the Route while still trusting the backend's serving cert?",
+"o": [
+"The router trusts any self-signed cert on the internal SDN by default",
+"By annotating the Service with service.beta.openshift.io/serving-cert-secret-name, so the service-ca operator mints/rotates a serving cert the router trusts by default",
+"destinationCACertificate is never required for re-encrypt routes",
+"By setting insecureEdgeTerminationPolicy: Allow"
+],
+"a": 1,
+"x": "The service-ca operator's serving-cert-secret-name annotation mints a cert signed by the cluster's service CA, which the router trusts by default \u2014 the standard 'encrypted end-to-end, zero cert toil' combo.",
+"t": "routes"
+},
+{
+"q": "A re-encrypt Route returns 503 even though the pods are healthy and `curl localhost` inside the pod works fine. What's the most likely cause?",
+"o": [
+"The pod's liveness probe is misconfigured",
+"The BuildConfig failed on its last push",
+"The router (acting as a TLS client to the pod) can't validate the backend's serving cert \u2014 expired cert, SAN mismatch after a service rename, or wrong destinationCACertificate",
+"The project ran out of image pull secrets"
+],
+"a": 2,
+"x": "On re-encrypt, the router is the TLS client to the pod; a cert validation failure there produces exactly this symptom \u2014 503 at the route while the app itself is fine.",
+"t": "routes"
+},
+{
+"q": "Team A creates a Route for shared.example.com in a scratch namespace. Weeks later Team B tries to create a production Route with the same hostname in their own namespace and it's rejected. Why?",
+"o": [
+"Hostnames must be unique per cluster only for edge termination",
+"DNS records, not OpenShift, own hostname uniqueness",
+"Only cluster-admins can create Routes with custom hostnames",
+"Route admission enforces hostname uniqueness \u2014 the oldest route claims the host, and a later route with the same host is rejected as HostAlreadyClaimed unless routeAdmission allows InterNamespaceAllowed"
+],
+"a": 3,
+"x": "Route admission enforces hostname uniqueness cluster-wide; the oldest route wins and later duplicates are rejected unless cross-namespace sharing is explicitly allowed.",
+"t": "routes"
+},
+{
+"q": "How does OpenShift implement the standard Kubernetes Ingress API under the hood?",
+"o": [
+"The router/Ingress Operator translates admitted Ingress objects into Route objects behind the scenes, so both Ingress and Route resources work",
+"Ingress objects are rejected outright; only Route objects are supported",
+"OpenShift runs a separate nginx-ingress controller alongside the HAProxy router for Ingress objects",
+"Ingress objects are converted into NetworkPolicies, not Routes"
+],
+"a": 0,
+"x": "Ingress objects work on OpenShift because the router translates admitted Ingress into Route objects behind the scenes, visible via ownerReferences.",
+"t": "routes"
+},
+{
+"q": "Long-polling/websocket-like requests through a Route start failing with 504s after about 30 seconds, even though the backend is still working. What's the fix?",
+"o": [
+"Switch the Route from edge to passthrough termination",
+"Set the haproxy.router.openshift.io/timeout annotation on the Route to extend HAProxy's default server timeout",
+"Increase the pod's memory limit",
+"Add more replicas to the Deployment"
+],
+"a": 1,
+"x": "HAProxy's default server timeout (30s) is the classic cause of premature 504s on long polls; fix per-route with the haproxy.router.openshift.io/timeout annotation.",
+"t": "routes"
+},
+{
+"q": "Per-tenant subdomain routes (spec.wildcardPolicy: Subdomain) are:",
+"o": [
+"Enabled by default on every IngressController",
+"Only available with passthrough termination",
+"Disabled by default; the IngressController must explicitly set routeAdmission.wildcardPolicy to WildcardsAllowed",
+"A feature of DeploymentConfigs, not Routes"
+],
+"a": 2,
+"x": "Wildcard routes are disabled by default and require the IngressController's routeAdmission.wildcardPolicy to be set to WildcardsAllowed.",
+"t": "routes"
+},
+{
+"q": "A developer says: 'we pushed v2 to the registry but prod is still running v1.' What's the correct troubleshooting order to find the broken link?",
+"o": [
+"Immediately restart the Deployment's pods",
+"Assume the BuildConfig is broken and re-run 'oc new-app'",
+"Check the SCC assigned to the deployment's service account",
+"Check whether the registry digest was actually re-imported into the ImageStreamTag, whether a trigger is wired from that tag to the Deployment, and whether the rollout actually fired \u2014 the chain is registry digest -> istag import -> trigger -> rollout"
+],
+"a": 3,
+"x": "Each hop is separately wired; the documented debug approach is walking the chain registry digest -> istag import -> trigger -> rollout to find exactly which joint broke.",
+"t": "ocbuilds"
+},
+{
+"q": "How does an S2I (source-to-image) build produce an image without a Dockerfile?",
+"o": [
+"A builder image's 'assemble' script injects and compiles/installs the source code into a copy of the builder image, then the 'run' script becomes the entrypoint",
+"OpenShift auto-generates a Dockerfile from the source and builds it with buildah",
+"It uses a hidden default Dockerfile shipped with every builder image",
+"It copies the source directly into a fixed base image with no build step at all"
+],
+"a": 0,
+"x": "S2I injects source into a builder image and runs its assemble script to produce the final image, with the run script as entrypoint \u2014 no Dockerfile involved.",
+"t": "ocbuilds"
+},
+{
+"q": "You're migrating an old app from a DeploymentConfig to a Deployment. Which behavior difference is most likely to bite you?",
+"o": [
+"Deployments don't support rolling updates at all",
+"DeploymentConfigs use ReplicationControllers and can have image triggers with automatic:false (silently not deploying on tag moves); Deployments need the image.openshift.io/triggers annotation to get equivalent ImageStreamTag integration",
+"DeploymentConfigs can't be scaled with 'oc scale'",
+"Only Deployments support S2I builds"
+],
+"a": 1,
+"x": "DCs use ReplicationControllers and can silently skip deploys with automatic:false; Deployments need the image.openshift.io/triggers annotation to replicate ImageStreamTag-driven rollouts.",
+"t": "ocbuilds"
+},
+{
+"q": "A Deployment in project app-prod shows ImagePullBackOff pulling an internal ImageStream image that lives in project shared-images. What's the canonical fix?",
+"o": [
+"Copy the image into the internal registry's root namespace",
+"Grant the service account the anyuid SCC",
+"Grant the app-prod service account the system:image-puller role in the shared-images project",
+"Set the ImageStream's referencePolicy to source"
+],
+"a": 2,
+"x": "Cross-project pulls of internal images need explicit RBAC: granting system:image-puller in the source project to the consuming SA is the documented fix for cross-namespace ImagePullBackOff.",
+"t": "ocbuilds"
+},
+{
+"q": "What does `oc tag quay.io/org/app:v2 web:prod --scheduled` do?",
+"o": [
+"Immediately and permanently copies the image into the internal registry, one time only",
+"Schedules a BuildConfig to run nightly",
+"Creates a CronJob that redeploys the app every 15 minutes",
+"Makes the cluster periodically (roughly every ~15 minutes) poll the external registry and re-import the tag into the ImageStream when its digest changes"
+],
+"a": 3,
+"x": "--scheduled makes the cluster poll the external registry on an interval (about 15 minutes) and re-import when the digest changes, as opposed to a one-time 'oc import-image'.",
+"t": "ocbuilds"
+},
+{
+"q": "Your cluster keeps hitting Docker Hub rate limits because every pod pulls an external image directly. What ImageStream setting addresses this?",
+"o": [
+"Set referencePolicy to 'local' so pulls are rewritten through the internal registry, which caches the image and buffers against external rate-limiting/outages",
+"Set referencePolicy to 'source' so pods always pull from the origin registry",
+"Disable the ImageStream and use raw image strings instead",
+"Increase the project's ResourceQuota for pods"
+],
+"a": 0,
+"x": "referencePolicy: local routes pulls through the internal registry's cache \u2014 the documented standard answer to Docker Hub rate-limit incidents.",
+"t": "ocbuilds"
+},
+{
+"q": "What's OpenShift's native answer to a multi-stage Docker build when the S2I builder alone would ship a fat toolchain?",
+"o": [
+"A single S2I build using a 'slim' variant of every builder image",
+"A chained build: a first S2I build compiles with the full toolchain, then a second Docker-strategy build copies just the artifact into a slim runtime image via source images",
+"Passing --squash to 'oc start-build'",
+"Using a DeploymentConfig lifecycle hook to strip the toolchain post-deploy"
+],
+"a": 1,
+"x": "Chained builds \u2014 an S2I compile step feeding a Docker-strategy image via source images \u2014 are the documented native equivalent of multi-stage Docker builds.",
+"t": "ocbuilds"
+},
+{
+"q": "Several otherwise-green builds start failing right at the final push step, and you suspect the internal registry's storage is full from accumulated layers. What's the day-2 fix?",
+"o": [
+"Increase every BuildConfig's completionDeadlineSeconds",
+"Switch all builds from S2I to Docker strategy",
+"Run 'oc adm prune images' (and 'oc adm prune builds', or an ImagePruner CR for scheduled pruning) to reclaim registry storage",
+"Delete and recreate all ImageStreams"
+],
+"a": 2,
+"x": "Pruning is the documented day-2 duty for this exact symptom: registry-full presents as failed pushes at the end of otherwise-green builds; 'oc adm prune images'/builds or a scheduled ImagePruner CR fixes it.",
+"t": "ocbuilds"
+}
+],
+"sre": [
+{
+"q": "Your service has a 99.9% availability SLO over a rolling 30-day window. How many minutes of full downtime does the error budget allow per window?",
+"o": [
+"4.32 minutes",
+"43.2 minutes",
+"21.6 minutes",
+"14.4 minutes"
+],
+"a": 1,
+"x": "30 days = 43,200 minutes; the budget is (1 - 0.999) x 43,200 = 43.2 minutes. Each extra nine divides the budget by ten: 99.99% would allow only 4.32 minutes.",
+"h": "Budget = (1 - SLO) x window length.",
+"t": "slo"
+},
+{
+"q": "Which of these is a well-formed SLI in the canonical SRE shape?",
+"o": [
+"Average CPU utilization across the fleet stays below 80%",
+"The p99 latency graph looks flat during business hours",
+"Requests returning non-5xx in under 300 ms, divided by total requests, measured at the load balancer",
+"Number of deploys per week that required a rollback"
+],
+"a": 2,
+"x": "The canonical SLI is good events / total events with a precise definition of both, measured at a stated point. CPU is a cause metric users never see, and the others lack the good/total ratio structure.",
+"t": "slo"
+},
+{
+"q": "Your team's SLO is 99.9%, but for six straight months you've delivered 99.99%. According to the SRE book, what risk are you running?",
+"o": [
+"Users and dependent teams build on the implicit 99.99%, so a normal 99.9% month now breaks them",
+"None \u2014 over-delivering on an SLO is always pure upside",
+"The monitoring system will recalibrate the SLO upward automatically",
+"The error budget will roll over and encourage reckless deploys next quarter"
+],
+"a": 0,
+"x": "This is the Chubby lesson: dependents assume the delivered level, not the promised one. Google deliberately took Chubby down to burn budget and flush out hidden dependencies. Budgets don't roll over and SLOs don't auto-adjust.",
+"t": "slo"
+},
+{
+"q": "An error budget policy typically specifies what consequence when the 30-day budget is fully exhausted?",
+"o": [
+"The SLO is lowered until the budget recovers",
+"On-call staffing is doubled for the next month",
+"All alerts are temporarily rerouted to tickets",
+"Feature releases freeze and engineering effort shifts to reliability work"
+],
+"a": 3,
+"x": "The policy is a pre-agreed contract: budget remaining means dev ships at will; budget exhausted means releases pause and reliability work takes priority until the rolling window recovers. It converts the dev-vs-ops argument into arithmetic.",
+"t": "slo"
+},
+{
+"q": "Your backend metrics show 100% success, but users report the site is down. Which SLI measurement-point mistake most plausibly explains this?",
+"o": [
+"The SLO window is calendar-month instead of rolling",
+"You measure only at the application servers, missing failures at the load balancer, DNS, or client side",
+"You included health-check traffic in the total-events denominator",
+"You set the latency threshold at p95 instead of p99"
+],
+"a": 1,
+"x": "Server-side metrics can't see requests that never arrive (LB overload, DNS, TLS) or client-side failures like a broken JS bundle. The SRE book recommends measuring close to the user, supplementing server metrics with client-side or black-box probes.",
+"t": "slo"
+},
+{
+"q": "How many minutes of monthly downtime does a 99.95% SLO allow over 30 days?",
+"o": [
+"21.6 minutes",
+"43.2 minutes",
+"10.8 minutes",
+"4.32 minutes"
+],
+"a": 0,
+"x": "0.05% of 43,200 minutes = 21.6 minutes \u2014 exactly half the 99.9% budget. Interviewers expect the ladder: 99.9% = 43.2 min, 99.95% = 21.6 min, 99.99% = 4.32 min.",
+"t": "slo"
+},
+{
+"q": "You're setting the first SLO for a new API. Per the SRE book, the target should primarily be based on what?",
+"o": [
+"Whatever availability the service achieved over its last quarter",
+"The tightest number engineering believes is technically achievable",
+"What users actually need from the service",
+"The highest SLA any competitor publishes"
+],
+"a": 2,
+"x": "Start from user needs, not current performance \u2014 basing the target on today's dashboard enshrines accidents as promises. Current performance informs feasibility, but the objective is derived from what users require.",
+"t": "slo"
+},
+{
+"q": "Error budget math: on a 99.9% SLO over 30 days (720 hours), a burn rate of 6 sustained for its full 6-hour alert window consumes how much budget?",
+"o": [
+"2%",
+"5%",
+"10%",
+"36%"
+],
+"a": 1,
+"x": "Budget consumed = burn rate x window / period = 6 x 6h / 720h = 5%. The same math gives 14.4 x 1/720 = 2% for the fast tier and 1 x 72/720 = 10% for the 3-day ticket tier.",
+"h": "consumed = burnRate x windowHours / periodHours.",
+"t": "alerting"
+},
+{
+"q": "In multiwindow multi-burn-rate alerting, why pair the 1-hour long window with a 5-minute short window that must ALSO exceed the threshold?",
+"o": [
+"The short window raises recall by catching slower burns",
+"It lets the alert fire before any budget is consumed",
+"Prometheus cannot evaluate 1-hour range vectors reliably",
+"It improves reset time \u2014 the alert clears quickly after recovery instead of firing while stale errors age out of the long window"
+],
+"a": 3,
+"x": "After a 15-minute outage ends, the bad data sits in the 1-hour window for ~45 more minutes. Requiring the short window to also exceed the threshold confirms you're still actively burning budget, so the alert resets within minutes. The guideline is short = 1/12 of long.",
+"t": "alerting"
+},
+{
+"q": "Your on-call gets paged at 3am: 'node CPU > 90% for 10 minutes.' Error rate and latency SLIs are normal. What does SRE monitoring doctrine say about this page?",
+"o": [
+"It's a cause-based alert with no user-visible symptom \u2014 it should be a ticket or dashboard, not a page",
+"It's valid \u2014 saturation is a golden signal, so any CPU breach must page",
+"The threshold should simply be raised to 95%",
+"It should page only during business hours"
+],
+"a": 0,
+"x": "Pages should reflect symptoms \u2014 user-visible impact \u2014 while causes like CPU feed diagnosis. Saturation is worth monitoring, but a cause alert with healthy SLIs is exactly the non-actionable 3am page that breeds alert fatigue.",
+"t": "alerting"
+},
+{
+"q": "What does a burn rate of exactly 1 mean?",
+"o": [
+"The service is failing 1% of requests",
+"The error budget was exhausted in the last hour",
+"You're consuming budget at precisely the rate that exhausts it exactly at the end of the SLO window",
+"No errors are occurring at all"
+],
+"a": 2,
+"x": "Burn rate is relative to the SLO period: 1x on a 30-day window means the budget lasts exactly 30 days. On a 99.9% SLO that's a steady 0.1% error rate; 2x exhausts in 15 days; a total outage is ~1000x, gone in about 43 minutes.",
+"t": "alerting"
+},
+{
+"q": "A dependency is silently failing 0.12% of your requests \u2014 just above your 99.9% SLO's 0.1% budget rate. Per the SRE Workbook tiers, how should this surface?",
+"o": [
+"A page from the 14.4x/1-hour tier",
+"A ticket from the 1x burn-rate / 3-day window tier",
+"It cannot be detected by burn-rate alerting at all",
+"An immediate SEV1 incident declaration"
+],
+"a": 1,
+"x": "A ~1.2x burn is far below the paging tiers (14.4x and 6x) but the slow-burn tier \u2014 burn rate 1 over a 3-day window, 10% of budget \u2014 catches exactly this leak and files a ticket. It's urgent for the month's budget, not for 3am.",
+"t": "alerting"
+},
+{
+"q": "The SRE Workbook's rule of thumb for sizing the short window relative to the long window is:",
+"o": [
+"Short window = 1/12 of the long window",
+"Short window = half of the long window",
+"Short window = fixed 1 minute regardless of long window",
+"Short window = the long window minus the sync period"
+],
+"a": 0,
+"x": "The Workbook recommends making the short window 1/12 the duration of the long one \u2014 hence the canonical pairs 1h/5m, 6h/30m, and 3d/6h.",
+"t": "alerting"
+},
+{
+"q": "Which set is the SRE book's four golden signals?",
+"o": [
+"Rate, Errors, Duration, Saturation",
+"Utilization, Saturation, Errors, Availability",
+"Latency, Throughput, Capacity, Cost",
+"Latency, Traffic, Errors, Saturation"
+],
+"a": 3,
+"x": "Latency (split by success vs failure \u2014 fast 500s skew averages), traffic, errors, and saturation. RED (Rate/Errors/Duration) is the request-centric variant for services; USE (Utilization/Saturation/Errors) is the resource-centric one.",
+"t": "alerting"
+},
+{
+"q": "A total outage begins on your 99.9%/30-day service \u2014 100% of requests failing. Roughly how long until the entire monthly error budget is gone?",
+"o": [
+"30 hours",
+"7.2 hours",
+"About 43 minutes",
+"3 days"
+],
+"a": 2,
+"x": "100% errors on a 0.1% budget is a 1000x burn rate: 43,200 minutes / 1000 = 43.2 minutes to total exhaustion. This is why fast-burn tiers page within minutes.",
+"t": "alerting"
+},
+{
+"q": "You're on-call and a SEV1 begins: checkout errors spiked 10 minutes after a deploy. Per Google's incident doctrine, your FIRST priority is:",
+"o": [
+"Attach a profiler and find the root cause in the new code",
+"Mitigate \u2014 roll back the deploy to stop user impact; root cause waits for the postmortem",
+"Write the postmortem timeline while events are fresh",
+"Email stakeholders a detailed technical analysis"
+],
+"a": 1,
+"x": "The priority order is stop the bleeding, restore service, then preserve evidence. Generic mitigations \u2014 rollback, feature-flag off, failover, load shedding \u2014 work before you understand the bug. Understanding is the postmortem's job.",
+"t": "incidents"
+},
+{
+"q": "During a managed incident, what does the Incident Commander actually do?",
+"o": [
+"Holds the big picture: assigns roles, tracks state, sets priorities \u2014 and deliberately does NOT debug",
+"Personally drives the debugging session since they're most senior",
+"Writes and sends all external customer communications",
+"Approves each individual command run in production"
+],
+"a": 0,
+"x": "The IC's job is coordination, borrowed from the emergency-services Incident Command System. Hands-on work belongs to the Ops Lead's team; communications belong to the Comms Lead. An IC who starts debugging abandons the big picture.",
+"t": "incidents"
+},
+{
+"q": "Per the SRE book, which group should be the ONLY one modifying the production system during an incident?",
+"o": [
+"Anyone with production access, to maximize parallelism",
+"The Incident Commander personally",
+"The operations team working under the Ops Lead",
+"The service's original developers"
+],
+"a": 2,
+"x": "The SRE book states the operations team should be the only group modifying the system during an incident. Freelance fixes from the sidelines cause conflicting changes \u2014 how one outage becomes two.",
+"t": "incidents"
+},
+{
+"q": "You've been debugging a production issue alone for over an hour with no resolution, and it may be customer-visible. What does Google's guidance say?",
+"o": [
+"Keep going \u2014 declaring an incident for something you might solve soon looks bad",
+"Escalate only if a manager approves",
+"Wait until a second customer complaint arrives",
+"Declare an incident now \u2014 'unsolved after an hour' and 'customer-visible' are both explicit declaration criteria"
+],
+"a": 3,
+"x": "Google's triggers: a second team is needed, the outage is customer-visible, or the issue is unsolved after an hour of focused analysis. Declaring early is cheap; grinding solo at 3am on a real outage is not.",
+"t": "incidents"
+},
+{
+"q": "It's hour six of an incident and you're handing off command before rest. What does a correct handoff look like?",
+"o": [
+"Post 'logging off, someone take over' in the channel and disconnect",
+"Explicitly state 'You're now the incident commander' and wait for firm acknowledgment before leaving",
+"Update the state doc's owner field and assume it's noticed",
+"CC the incoming IC on the last stakeholder email"
+],
+"a": 1,
+"x": "The SRE book's example is nearly verbatim: the outgoing IC says 'You're now the incident commander, okay?' and waits for explicit confirmation. Ambiguous handoffs \u2014 where everyone assumes someone else has command \u2014 are how long incidents fail.",
+"t": "incidents"
+},
+{
+"q": "What is the Communications Lead's core function during an incident?",
+"o": [
+"Issue periodic updates to stakeholders on a fixed cadence so responders aren't interrupted for status",
+"Negotiate SLA credits with affected customers in real time",
+"Transcribe every command run into the postmortem",
+"Approve the Ops Lead's mitigation choices"
+],
+"a": 0,
+"x": "The Comms Lead is the public face, posting updates at a regular cadence (even 'no change, next update at :30'). This stops executives and support from pinging the people doing the work \u2014 protecting responder focus is the whole point.",
+"t": "incidents"
+},
+{
+"q": "Errors began 20 minutes ago, right after a config deploy; the change diff is large and unclear. Which mitigation is usually fastest and safest?",
+"o": [
+"Read the entire diff until you find the bug, then hotfix forward",
+"Add more replicas to absorb the errors",
+"Roll back the deploy immediately and analyze the diff afterward",
+"Restart all pods to clear possible bad state"
+],
+"a": 2,
+"x": "Strong correlation with a recent change makes rollback the generic, fast, low-risk mitigation \u2014 no understanding of the bug required. Fix-forward under pressure and speculative restarts both extend user impact while you guess.",
+"t": "incidents"
+},
+{
+"q": "What does 'blameless' actually mean in a blameless postmortem?",
+"o": [
+"No individual actions are ever mentioned in the document",
+"Assume everyone acted with good intent on the information they had, and analyze why the system made the failure possible",
+"No one can face consequences for anything, including sabotage",
+"The postmortem must avoid naming a root cause"
+],
+"a": 1,
+"x": "Blameless means the analysis targets the system, not the person: names and actions appear in the timeline, but the question is 'why did the pipeline allow this?' not 'why did this engineer err?'. Genuine recklessness is a management matter handled outside the document.",
+"t": "postmortem"
+},
+{
+"q": "After a harsh, name-and-shame incident review, what does SRE doctrine predict will happen in your organization's future incidents?",
+"o": [
+"Engineers become more careful, so incidents get shorter",
+"Nothing changes \u2014 review tone doesn't affect operations",
+"More postmortems get written, improving learning",
+"People hide problems, delay escalation, and under-report near-misses \u2014 the incident data supply collapses"
+],
+"a": 3,
+"x": "The SRE book: where finger-pointing prevails, 'people will not bring issues to light for fear of punishment.' The goal shifts from system improvement to self-protection \u2014 you pay full outage cost and receive none of the learning. This is the aviation/healthcare lesson blamelessness imports.",
+"t": "postmortem"
+},
+{
+"q": "Which event should trigger a postmortem even if user impact was tiny?",
+"o": [
+"Data loss of any kind, or an incident discovered by a human rather than by monitoring",
+"Any deploy that took longer than planned",
+"Every on-call shift, as routine practice",
+"A dashboard being slow to load for one engineer"
+],
+"a": 0,
+"x": "Standard triggers include ANY data loss, user-visible downtime beyond a threshold, on-call intervention, long resolution times, and monitoring failure \u2014 a human finding the incident before an alert did is itself a defect worth analyzing.",
+"t": "postmortem"
+},
+{
+"q": "A postmortem's action items are most likely to actually prevent recurrence if each one has:",
+"o": [
+"A commitment from the team to 'be more careful next time'",
+"A long list of every hypothetical failure mode",
+"A named individual owner, a priority, and a tracked ticket \u2014 biased toward prevention and detection fixes",
+"Sign-off from the engineer who caused the incident"
+],
+"a": 2,
+"x": "A team name as owner is nobody; 'be more careful' patches the human instead of the system and is worthless. Senior-engineer review of drafts exists partly to verify AIs are concrete, owned, and would genuinely prevent or detect recurrence.",
+"t": "postmortem"
+},
+{
+"q": "Your VP wants 'MTTR reduced 20% this quarter' as the team's headline reliability KPI. What's the strongest caveat you should raise?",
+"o": [
+"MTTR can only be improved by hiring more on-callers",
+"MTTR is defined identically everywhere, so the target is unambiguous",
+"MTTR should be replaced with a count of postmortems written",
+"With few, heterogeneous incidents the mean is statistically fragile \u2014 one long incident swamps it \u2014 and a targeted metric invites gaming like early closure or severity downgrades"
+],
+"a": 3,
+"x": "One 6-hour incident among nine 5-minute rollbacks doubles MTTR while signaling nothing. Distributions and per-class analysis beat single means, 'R' itself is ambiguous (repair/recover/resolve), and metrics-as-targets get gamed. Postmortem counts are worse \u2014 they punish honest declarers.",
+"t": "postmortem"
+},
+{
+"q": "What is Google's 'Wheel of Misfortune' exercise?",
+"o": [
+"Role-playing past postmortems as live disaster scenarios so engineers practice incident response",
+"Randomly assigning blame for an incident to a team member",
+"A lottery deciding who takes the next on-call shift",
+"Chaos-engineering tooling that kills random production pods"
+],
+"a": 0,
+"x": "Wheel of Misfortune replays real past incidents as theater \u2014 an engineer responds live while a peer plays the system \u2014 converting the postmortem archive into practiced muscle memory. It sits alongside DiRT exercises and 'Postmortem of the Month' in reinforcing the culture.",
+"t": "postmortem"
+},
+{
+"q": "During review, a senior engineer asks your postmortem draft: 'where did we get lucky?' Why is that section valuable?",
+"o": [
+"It fills mandatory template space required for sign-off",
+"It credits individual heroics so responders feel appreciated",
+"It provides legal cover by documenting due diligence",
+"It names latent failures that didn't fire this time \u2014 the stale-but-usable backup, the engineer who happened to be awake \u2014 so they're fixed before luck runs out"
+],
+"a": 3,
+"x": "'Where we got lucky' surfaces near-misses inside the incident: conditions that would have made it far worse. Documenting them turns luck into action items, which is precisely the learning blameless culture is designed to extract.",
+"t": "postmortem"
+},
+{
+"q": "In Kubernetes HPA, 'CPU utilization: 80%' means the pod is using 80% of what?",
+"o": [
+"The node's allocatable CPU",
+"The pod's CPU limit",
+"The pod's CPU resource request",
+"The cluster's total CPU capacity"
+],
+"a": 2,
+"x": "HPA utilization = actual usage / resource REQUEST \u2014 limits play no part. A pod requesting 500m and using 400m is at 80% even with a 2-core limit. Corollary: pods without CPU requests break CPU-based HPA entirely.",
+"t": "autoscaling"
+},
+{
+"q": "Your Deployment runs 4 replicas averaging 90% CPU-of-requests; the HPA target is 60%. How many replicas does the HPA compute?",
+"o": [
+"5",
+"6",
+"8",
+"12"
+],
+"a": 1,
+"x": "desiredReplicas = ceil(currentReplicas x currentMetric / targetMetric) = ceil(4 x 90/60) = ceil(6.0) = 6. The controller evaluates roughly every 15s with a 10% tolerance band around ratio 1.0.",
+"h": "ceil(current x actual/target).",
+"t": "autoscaling"
+},
+{
+"q": "A teammate proposes running HPA and VPA together, both driven by CPU, 'so pods are always right-sized AND right-counted.' Why is this a known anti-pattern?",
+"o": [
+"VPA rewrites CPU requests, which instantly changes the utilization percentage HPA computes \u2014 two controllers actuating on one signal oscillate",
+"VPA and HPA cannot be installed in the same cluster",
+"HPA always takes precedence, so VPA becomes a silent no-op",
+"It works fine and is the recommended default"
+],
+"a": 0,
+"x": "Because HPA utilization = usage/request, a VPA request change moves every pod's percentage with zero change in real load: VPA raises requests, utilization falls, HPA scales in, per-pod load rises, VPA raises requests again. Safe splits: HPA on CPU + VPA on memory, or HPA on a custom metric (RPS/queue depth).",
+"t": "autoscaling"
+},
+{
+"q": "Traffic to your API spikes every few minutes with quiet gaps between. Which HPA mechanism prevents replicas being deleted during a brief lull right before the next spike?",
+"o": [
+"The 10% tolerance band on the metric ratio",
+"The 5-minute CPU initialization period",
+"The Metrics Server's 15-second scrape interval",
+"The scale-down stabilization window (default 300s), which keeps the highest recommendation from the last 5 minutes"
+],
+"a": 3,
+"x": "Scale-down uses a 300-second stabilization window by default: the HPA acts on the maximum recommendation seen in that span, so short dips don't remove capacity you're about to need. Scale-up has no default stabilization; both are tunable via the v2 behavior field.",
+"t": "autoscaling"
+},
+{
+"q": "Your HPA scales pods up during a spike but they sit Pending for 4 minutes before serving. The cluster runs Cluster Autoscaler on fixed node groups. What's the widely-cited advantage of Karpenter here?",
+"o": [
+"Karpenter removes the need for pod resource requests",
+"It provisions right-sized instances directly from the pending pods' aggregate resource shapes, skipping node groups for faster, better bin-packed capacity",
+"Karpenter scales the pods themselves, replacing the HPA",
+"It caches pre-pulled images so pods start faster"
+],
+"a": 1,
+"x": "Cluster Autoscaler grows pre-defined node groups (e.g., ASGs); Karpenter watches pending pods and launches instance types matched to their actual aggregate needs, typically cutting provisioning latency and cost. Either way HPA -> Pending -> node scale-up is the slow chain, which is why teams add headroom or balloon pods.",
+"t": "autoscaling"
+},
+{
+"q": "Your queue workers are I/O-bound: during a backlog, Kafka lag explodes while worker CPU stays low, so the CPU-based HPA never scales. What's the standard fix?",
+"o": [
+"Lower the CPU target to 5% so any activity triggers scaling",
+"Switch the HPA to memory utilization instead",
+"Use KEDA (or an external/custom metric HPA) to scale on queue depth or consumer lag \u2014 event-driven scaling that can even go to zero",
+"Remove CPU requests so utilization reads as infinite"
+],
+"a": 2,
+"x": "Queue depth is the true demand signal for workers; CPU lies when consumers block on I/O. KEDA provides 60+ scalers (SQS, Kafka lag, Prometheus queries, cron) and supports scale-to-zero, which vanilla HPA cannot (minReplicas >= 1). Memory is a trap since many runtimes never release it.",
+"t": "autoscaling"
+}
+]
+}
