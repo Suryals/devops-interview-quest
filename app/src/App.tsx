@@ -192,7 +192,7 @@ function Explore({ st, openDeep }: { st: AppState; openDeep: (k: string) => void
           Essentials at a glance on every card; open a <b className="text-foreground">deep dive</b> for a plain-language
           explanation, spec-precise detail, and a wire example. Visit them all for the Explorer badge.
         </p>
-        <div className="stagger mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="stagger mt-5 grid auto-rows-fr grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(EXPLORE).map(([k, e]) => <ConceptCard key={k} k={k} e={e} visited={st.visited.has(k)} onOpen={() => openDeep(k)} />)}
         </div>
       </div>
@@ -211,18 +211,18 @@ function ConceptCard({ k, e, visited, onOpen }: { k: string; e: Concept; visited
           <Ic size={15} className={CAT_TEXT[e.cat]} />
         </span>
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[13.5px] font-bold leading-tight">{e.t}
+          <div className="line-clamp-1 flex items-center gap-2 text-[13.5px] font-bold leading-tight">{e.t}
             {e.dep && <span className="rounded border border-[hsl(var(--server)/.5)] bg-[hsl(var(--server)/.08)] px-1 text-[9px] font-extrabold tracking-wide text-[hsl(var(--server))]">DEPRECATED</span>}
           </div>
-          <div className="text-[11.5px] text-muted-foreground">{e.s}</div>
+          <div className="line-clamp-1 text-[11.5px] text-muted-foreground">{e.s}</div>
         </div>
       </div>
       <ul className="space-y-1">
         {e.quick.map((q, i) => (
-          <li key={i} className="flex gap-1.5 text-xs text-muted-foreground"><span className="text-border">—</span><span>{q}</span></li>
+          <li key={i} className="flex gap-1.5 text-xs text-muted-foreground"><span className="text-border">—</span><span className="line-clamp-1">{q}</span></li>
         ))}
       </ul>
-      {e.methods.length > 0 && <div className="flex flex-wrap gap-1.5">{e.methods.map(m => <MethodChip key={m} m={m} />)}</div>}
+      {e.methods.length > 0 && <div className="flex h-[24px] gap-1.5 overflow-hidden">{e.methods.slice(0, 3).map(m => <MethodChip key={m} m={m} />)}</div>}
       <div className="mt-auto flex items-center pt-0.5">
         <span className="text-xs font-semibold text-[hsl(var(--host))] transition-transform duration-200 group-hover:translate-x-0.5">Deep dive →</span>
         {visited && <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--good-text))]"><Check size={11} /> visited</span>}
