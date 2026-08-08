@@ -8,7 +8,7 @@ import {
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
-import { EXPLORE, FLOWS, BUILDS, RANKS, XP_MAX, type Concept, type Level } from "./data";
+import { EXPLORE, FLOWS, BUILDS, RANKS, XP_MAX, CONCEPT_QUIZ, type Concept, type Level, type Q } from "./data";
 import { QUEST_LEVELS as LEVELS, POOLS, sample, bossDraw, BANK_SIZE } from "./questions";
 import { GuideButton, AskGuide } from "./guide";
 import { Shield, KeyRound, AlertTriangle, Puzzle, GitBranch, Globe, Gauge, Braces, Activity, Box } from "lucide-react";
@@ -47,6 +47,7 @@ interface AppState {
 
 const STATE_KEY = "mcpquest.state";
 const THEME_KEY = "mcpquest.theme";
+const RUN_KEY = "mcpquest.run";
 const FRESH: AppState = { mode: "learn", xp: 0, visited: new Set(), best: {}, badges: new Set(), streak: 0 };
 function loadState(): AppState {
   try {
@@ -57,14 +58,16 @@ function loadState(): AppState {
 
 export default function App() {
   const [st, setSt] = useState<AppState>(loadState);
-  const [tab, setTab] = useState<"explore" | "quest">("explore");
+  const [tab, setTab] = useState<"explore" | "quest">(() => {
+    try { return localStorage.getItem(RUN_KEY) ? "quest" : "explore"; } catch { return "explore"; }
+  });
   const [dark, setDark] = useState(() => localStorage.getItem(THEME_KEY) === "crt");
   useEffect(() => { document.documentElement.classList.toggle("dark", dark); localStorage.setItem(THEME_KEY, dark ? "crt" : "paper"); }, [dark]);
   useEffect(() => {
     localStorage.setItem(STATE_KEY, JSON.stringify({ ...st, visited: [...st.visited], badges: [...st.badges] }));
   }, [st]);
   useEffect(() => { if (st.xp > 0) showToast(`Progress restored — ${st.xp} XP`); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-  const resetAll = () => { localStorage.removeItem(STATE_KEY); setSt({ ...FRESH, visited: new Set(), badges: new Set() }); showToast("Progress reset"); };
+  const resetAll = () => { localStorage.removeItem(STATE_KEY); localStorage.removeItem(RUN_KEY); setSt({ ...FRESH, visited: new Set(), badges: new Set() }); showToast("Progress reset"); };
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -81,20 +84,21 @@ export default function App() {
     if (msg) showToast(`+${n} XP · ${msg}`);
   };
 
-  const visit = (k: string) => {
+  // a card is mastered by passing its 3-question check inside the deep dive — not by clicking it
+  const master = (k: string) => {
     if (st.visited.has(k)) return;
     const e = EXPLORE[k];
     setSt(s => {
       const visited = new Set(s.visited); visited.add(k);
       const badges = new Set(s.badges);
       let xp = s.xp + 5;
-      if (visited.size >= Object.keys(EXPLORE).length && !badges.has("explorer")) { badges.add("explorer"); xp += 20; }
+      if (Object.keys(EXPLORE).every(ek => visited.has(ek)) && !badges.has("explorer")) { badges.add("explorer"); xp += 20; }
       return { ...s, visited, badges, xp };
     });
-    showToast(`+5 XP · explored: ${e.t}`);
+    showToast(`+5 XP · mastered: ${e.t}`);
   };
 
-  const openDeep = (k: string) => { visit(k); setOpenKey(k); };
+  const openDeep = (k: string) => setOpenKey(k);
   const toggleDark = () => setDark(d => !d);
 
   return (
@@ -159,7 +163,7 @@ export default function App() {
       </footer>
 
       {/* deep-dive dialog */}
-      <DeepDive k={openKey} mode={st.mode} onClose={() => setOpenKey(null)} />
+      <DeepDive k={openKey} mode={st.mode} mastered={openKey ? st.visited.has(openKey) : false} onMastered={() => openKey && master(openKey)} onClose={() => setOpenKey(null)} />
 
       {/* toast */}
       {toast && (
@@ -190,7 +194,8 @@ function Explore({ st, openDeep }: { st: AppState; openDeep: (k: string) => void
         <h2 className="text-2xl tracking-tight">{Object.keys(EXPLORE).length} concepts, three depths</h2>
         <p className="mt-1 max-w-2xl text-[13.5px] text-muted-foreground">
           Essentials at a glance on every card; open a <b className="text-foreground">deep dive</b> for a plain-language
-          explanation, spec-precise detail, and a wire example. Visit them all for the Explorer badge.
+          explanation, deep detail, and a real example — then pass the card's 3-question check to earn its
+          +5 XP. Master them all for the Explorer badge.
         </p>
         <div className="stagger mt-5 grid auto-rows-fr grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(EXPLORE).map(([k, e]) => <ConceptCard key={k} k={k} e={e} visited={st.visited.has(k)} onOpen={() => openDeep(k)} />)}
@@ -225,7 +230,7 @@ function ConceptCard({ k, e, visited, onOpen }: { k: string; e: Concept; visited
       {e.methods.length > 0 && <div className="flex h-[24px] gap-1.5 overflow-hidden">{e.methods.slice(0, 2).map(m => <MethodChip key={m} m={m} />)}</div>}
       <div className="mt-auto flex items-center pt-0.5">
         <span className="text-xs font-semibold text-[hsl(var(--host))] transition-transform duration-200 group-hover:translate-x-0.5">Deep dive →</span>
-        {visited && <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--good-text))]"><Check size={11} /> visited</span>}
+        {visited && <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--good-text))]"><Check size={11} /> mastered</span>}
       </div>
     </button>
   );
@@ -249,7 +254,7 @@ function FactList({ items, delay = 0 }: { items: string[]; delay?: number }) {
   );
 }
 
-function DeepDive({ k, mode, onClose }: { k: string | null; mode: "learn" | "exam"; onClose: () => void }) {
+function DeepDive({ k, mode, mastered, onMastered, onClose }: { k: string | null; mode: "learn" | "exam"; mastered: boolean; onMastered: () => void; onClose: () => void }) {
   const e = k ? EXPLORE[k] : null;
   const [step, setStep] = useState(0);
   const Ic = e ? (ICONS[e.icon] ?? Layers) : Layers;
@@ -332,6 +337,7 @@ function DeepDive({ k, mode, onClose }: { k: string | null; mode: "learn" | "exa
                   </div>
                 </div>
               )}
+              <MiniCheck k={k!} mastered={mastered} onMastered={onMastered} />
               <AskGuide e={e} />
             </div>
           </div>
@@ -347,7 +353,11 @@ function Quest({ st, setSt, addXP, showToast, rank, onReset }: {
   st: AppState; setSt: React.Dispatch<React.SetStateAction<AppState>>;
   addXP: (n: number, m?: string) => void; showToast: (m: string) => void; rank: string; onReset: () => void;
 }) {
-  const [active, setActive] = useState<Level | null>(null);
+  // resume an interrupted quiz run (survives refresh)
+  const [active, setActive] = useState<Level | null>(() => {
+    try { const r = JSON.parse(localStorage.getItem(RUN_KEY) || ""); return LEVELS.find(L => L.id === r.levelId) ?? null; }
+    catch { return null; }
+  });
 
   const finishLevel = (L: Level, pct: number) => {
     setSt(s => {
@@ -362,7 +372,7 @@ function Quest({ st, setSt, addXP, showToast, rank, onReset }: {
   const share = () => {
     const lines = [`🗺️ DevOps Interview Quest — spec 2026-07-28`, `Rank: ${rank} · ${st.xp} XP`];
     LEVELS.forEach(L => { if (st.best[L.id] !== undefined) lines.push(`Level ${L.n} ${L.t}: ${st.best[L.id]}%${st.badges.has(L.id) ? " " + L.badge.split(" ")[0] : ""}`); });
-    if (st.badges.has("explorer")) lines.push("🧭 Explorer: all 12 concepts visited");
+    if (st.badges.has("explorer")) lines.push(`🧭 Explorer: all ${Object.keys(EXPLORE).length} concept checks passed`);
     lines.push("DevOps / SRE interview prep — K8s · OpenShift · SRE");
     const txt = lines.join("\n");
     if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => showToast("Run summary copied!")).catch(() => window.prompt("Copy your run summary:", txt));
@@ -372,7 +382,7 @@ function Quest({ st, setSt, addXP, showToast, rank, onReset }: {
   if (active) {
     return active.builder
       ? <BuilderLevel L={active} st={st} addXP={addXP} onDone={pct => finishLevel(active, pct)} onExit={() => setActive(null)} />
-      : <QuizLevel L={active} st={st} setSt={setSt} addXP={addXP} onDone={pct => finishLevel(active, pct)} onExit={() => setActive(null)} />;
+      : <QuizLevel L={active} st={st} setSt={setSt} addXP={addXP} onDone={pct => finishLevel(active, pct)} onExit={() => { localStorage.removeItem(RUN_KEY); setActive(null); }} />;
   }
 
   return (
@@ -419,6 +429,86 @@ function Quest({ st, setSt, addXP, showToast, rank, onReset }: {
   );
 }
 
+/* ---------------- per-card mastery check ---------------- */
+function MiniCheck({ k, mastered, onMastered }: { k: string; mastered: boolean; onMastered: () => void }) {
+  const qs: Q[] | undefined = CONCEPT_QUIZ[k];
+  const [i, setI] = useState(0);
+  const [right, setRight] = useState(0);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [done, setDone] = useState(false);
+  const reset = () => { setI(0); setRight(0); setPicked(null); setDone(false); };
+  useEffect(reset, [k]);
+  if (!qs?.length) return null;
+
+  if (mastered && !done) {
+    return (
+      <div className="mt-5 border-t pt-4">
+        <div className="flex items-center gap-2 text-[13px] font-semibold text-[hsl(var(--good-text))]">
+          <Check size={14} /> Mastered — 3/3 check passed, +5 XP earned
+        </div>
+      </div>
+    );
+  }
+
+  const q = qs[Math.min(i, qs.length - 1)];
+  const answer = (j: number) => {
+    if (picked !== null) return;
+    setPicked(j);
+    if (j === q.a) setRight(r => r + 1);
+  };
+  const next = () => {
+    if (i + 1 < qs.length) { setI(i + 1); setPicked(null); }
+    else {
+      setDone(true);
+      // `right` already includes the current answer (state updated on pick)
+      if (right === qs.length) onMastered();
+    }
+  };
+
+  if (done) {
+    const passed = right === qs.length;
+    return (
+      <div className="mt-5 border-t pt-4">
+        <div className="kicker mb-2.5">Prove it — earn the XP</div>
+        <div className={"anim-pop rounded-xl border px-4 py-3 text-[13.5px] " + (passed ? "border-[hsl(var(--good)/.5)]" : "border-[hsl(var(--bad)/.5)]")}>
+          {passed
+            ? <><b className="text-[hsl(var(--good-text))]">✓ 3/3 — mastered!</b> +5 XP earned for {EXPLORE[k].t}.</>
+            : <><b className="text-[hsl(var(--bad))]">{right}/{qs.length}</b> — re-read the card above and try again.
+                <div className="mt-2"><Button size="sm" variant="outline" onClick={reset}><RotateCcw size={13} className="mr-1" /> Retry check</Button></div></>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 border-t pt-4">
+      <div className="kicker mb-2.5">Prove it — earn the XP · {i + 1} / {qs.length}</div>
+      <p className="mb-2.5 text-[14px] font-semibold leading-snug">{q.q}</p>
+      <div className="space-y-1.5">
+        {q.o.map((o, j) => {
+          const state = picked === null ? "" : j === q.a ? "correct" : j === picked ? "wrong" : "dim";
+          return (
+            <button key={j} disabled={picked !== null} onClick={() => answer(j)}
+              className={"flex w-full gap-2 rounded-lg border px-3 py-2 text-left text-[13px] transition-all duration-150 " +
+                (state === "correct" ? "border-[hsl(var(--good))] bg-[hsl(var(--client)/.1)] " :
+                 state === "wrong" ? "anim-shake border-[hsl(var(--bad))] " :
+                 state === "dim" ? "opacity-55 " : "hover:border-muted-foreground/40 hover:bg-secondary/60 ")}>
+              <span className={"font-extrabold " + (state === "correct" ? "text-[hsl(var(--good-text))]" : state === "wrong" ? "text-[hsl(var(--bad))]" : "text-muted-foreground")}>{String.fromCharCode(65 + j)}</span>
+              <span>{o}</span>
+            </button>
+          );
+        })}
+      </div>
+      {picked !== null && (
+        <div className="anim-rise mt-3 rounded-lg border px-3 py-2 text-[12.5px]">
+          <b className={picked === q.a ? "text-[hsl(var(--good-text))]" : "text-[hsl(var(--bad))]"}>{picked === q.a ? "✓ Correct" : "✕ Not quite"}</b> — {q.x}
+          <div className="mt-2"><Button size="sm" onClick={next}>{i + 1 < qs.length ? <>Next <ChevronRight size={13} /></> : "Finish check"}</Button></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResetButton({ onReset }: { onReset: () => void }) {
   const [armed, setArmed] = useState(false);
   useEffect(() => {
@@ -436,18 +526,27 @@ function QuizLevel({ L, st, setSt, addXP, onDone, onExit }: {
   L: Level; st: AppState; setSt: React.Dispatch<React.SetStateAction<AppState>>;
   addXP: (n: number, m?: string) => void; onDone: (pct: number) => void; onExit: () => void;
 }) {
-  const [i, setI] = useState(0);
-  const [score, setScore] = useState(0);
+  // an interrupted run (refresh mid-level) restores exactly where it left off
+  const saved = useMemo((): { levelId: string; qs: Q[]; i: number; score: number } | null => {
+    try { const r = JSON.parse(localStorage.getItem(RUN_KEY) || ""); return r.levelId === L.id && Array.isArray(r.qs) && r.qs.length ? r : null; }
+    catch { return null; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L.id]);
+  const [i, setI] = useState<number>(saved?.i ?? 0);
+  const [score, setScore] = useState<number>(saved?.score ?? 0);
   const [picked, setPicked] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [finished, setFinished] = useState(false);
   const [runId, setRunId] = useState(0);
   // each run draws a fresh random set from the level's domain pool
   const qs = useMemo(
-    () => L.qs ?? (L.boss ? bossDraw() : sample(POOLS[L.pool!] ?? [], L.draw ?? 8)),
-    [L, runId]
+    () => (runId === 0 && saved ? saved.qs : L.qs ?? (L.boss ? bossDraw() : sample(POOLS[L.pool!] ?? [], L.draw ?? 8))),
+    [L, runId, saved]
   );
   const q = qs[Math.min(i, qs.length - 1)];
+  // checkpoint the run: drawn questions + position of the last COMPLETED question
+  const persist = (ni: number, ns: number) => { try { localStorage.setItem(RUN_KEY, JSON.stringify({ levelId: L.id, qs, i: ni, score: ns })); } catch { /* storage unavailable */ } };
+  useEffect(() => { if (!finished) persist(i, score); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [qs]);
 
   const pick = (j: number) => {
     if (picked !== null) return;
@@ -461,8 +560,8 @@ function QuizLevel({ L, st, setSt, addXP, onDone, onExit }: {
     } else setSt(s => ({ ...s, streak: 0 }));
   };
   const next = () => {
-    if (i + 1 < qs.length) { setI(i + 1); setPicked(null); setShowHint(false); }
-    else { const pct = Math.round((100 * (score)) / qs.length); onDone(pct); setFinished(true); }
+    if (i + 1 < qs.length) { setI(i + 1); setPicked(null); setShowHint(false); persist(i + 1, score); }
+    else { const pct = Math.round((100 * (score)) / qs.length); onDone(pct); setFinished(true); try { localStorage.removeItem(RUN_KEY); } catch { /* ignore */ } }
   };
 
   if (finished) {

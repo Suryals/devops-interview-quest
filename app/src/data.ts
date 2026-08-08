@@ -191,3 +191,7 @@ for (const [k, v] of Object.entries(INTROS as Record<string, string[]>)) {
 for (const c of EXTRA_CARDS as (Concept & { key: string })[]) {
   EXPLORE[c.key] = c;
 }
+
+// per-concept 3-question mastery checks (earn the card's XP by passing, not by clicking)
+import CQ from "./concept-quiz.json";
+export const CONCEPT_QUIZ = CQ as unknown as Record<string, Q[]>;
